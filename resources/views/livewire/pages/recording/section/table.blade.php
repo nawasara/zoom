@@ -1,0 +1,99 @@
+<div>
+    {{-- Sync info bar --}}
+    <div class="mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-neutral-400">
+        <div class="flex items-center gap-3">
+            <span class="text-blue-600">Total: {{ $statistics['total_recordings'] }}</span>
+            <span class="text-green-600">Completed: {{ $statistics['completed_recordings'] }}</span>
+            <span class="text-yellow-600">Size: {{ $statistics['total_size_gb'] }} GB</span>
+        </div>
+        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-blue-600 hover:underline">
+            Lihat Sync Jobs →
+        </a>
+    </div>
+
+    <x-nawasara-ui::filter-bar searchPlaceholder="Cari topic..." searchModel="search">
+        <x-slot:actions>
+            <x-nawasara-ui::button color="neutral" variant="outline" size="sm" wire:click="resetFilters">
+                <x-slot:icon>
+                    <x-lucide-x class="size-4" />
+                </x-slot:icon>
+                Reset
+            </x-nawasara-ui::button>
+        </x-slot:actions>
+
+        <x-slot:chips>
+            @if ($search)
+                <x-nawasara-ui::filter-chip label="Cari: {{ $search }}" model="search" />
+            @endif
+        </x-slot:chips>
+    </x-nawasara-ui::filter-bar>
+
+    <x-nawasara-ui::table :headers="['Topic', 'Owner', 'Start Time', 'Duration', 'File Size', 'Status', 'Actions']" :title="'Recordings (' . $recordings->total() . ' recordings)'">
+        <x-slot:table>
+            @forelse ($recordings as $recording)
+                <tr wire:key="recording-{{ $recording->id }}">
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                        {{ $recording->topic }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-neutral-300">
+                        @if ($recording->owner)
+                            {{ $recording->owner->full_name }}
+                        @else
+                            <span class="text-gray-400">Unknown</span>
+                        @endif
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-neutral-300">
+                        {{ $recording->start_time?->format('d M Y H:i') ?? '-' }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-neutral-300">
+                        {{ $recording->duration_minutes }} min
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-neutral-300">
+                        {{ $recording->file_size_mb }}
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                        @php
+                            $statusBadge =
+                                $recording->status === 'completed'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+                        @endphp
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {{ $statusBadge }}">
+                            {{ ucfirst($recording->status) }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm space-x-2 text-center">
+                        @if ($recording->download_url)
+                            <a href="{{ $recording->download_url }}" target="_blank"
+                                class="text-blue-600 hover:underline text-xs">
+                                <x-lucide-download class="size-4 inline" />
+                                Download
+                            </a>
+                        @endif
+                        @can('zoom.recording.delete')
+                            <x-nawasara-ui::button variant="link" color="danger" size="sm"
+                                wire:click="deleteRecording('{{ $recording->recording_id }}')"
+                                wire:confirm="Delete this recording?"
+                                class="text-xs">
+                                <x-slot:icon><x-lucide-trash-2 /></x-slot:icon>
+                                Delete
+                            </x-nawasara-ui::button>
+                        @endcan
+                    </td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                        <x-lucide-inbox class="size-8 mx-auto mb-2 text-gray-400" />
+                        <p>No recordings found</p>
+                    </td>
+                </tr>
+            @endforelse
+        </x-slot:table>
+    </x-nawasara-ui::table>
+
+    <div class="mt-6">
+        {{ $recordings->links() }}
+    </div>
+</div>
