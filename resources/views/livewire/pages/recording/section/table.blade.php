@@ -80,9 +80,12 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
-                        <x-lucide-inbox class="size-8 mx-auto mb-2 text-gray-400" />
-                        <p>No recordings found</p>
+                    <td colspan="7">
+                        <x-nawasara-ui::empty-state
+                            icon="lucide-video-off"
+                            title="Belum ada recording"
+                            description="Cloud recording dari meeting akan tersedia di sini setelah meeting selesai (delay ~5-15 menit)."
+                            inline />
                     </td>
                 </tr>
             @endforelse

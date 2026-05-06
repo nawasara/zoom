@@ -84,9 +84,12 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
-                        <x-lucide-inbox class="size-8 mx-auto mb-2 text-gray-400" />
-                        <p>No users found</p>
+                    <td colspan="7">
+                        <x-nawasara-ui::empty-state
+                            icon="lucide-users"
+                            title="Belum ada Zoom user"
+                            description="User yang ter-provisi di Zoom workspace akan auto-sync dan muncul di sini."
+                            inline />
                     </td>
                 </tr>
             @endforelse
