@@ -2,9 +2,9 @@
     {{-- Sync info bar --}}
     <div class="mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-neutral-400">
         <div class="flex items-center gap-3">
-            <span class="text-blue-600">Total: {{ $meetings->total() }}</span>
+            <span><strong class="text-gray-700 dark:text-neutral-300">{{ $meetings->total() }}</strong> total meeting</span>
         </div>
-        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-blue-600 hover:underline">
+        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
             Lihat Sync Jobs →
         </a>
     </div>
