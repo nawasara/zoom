@@ -60,6 +60,45 @@ class ZoomRecordingRepository
         ];
     }
 
+    /**
+     * Aggregate stats dengan shape yang konsisten dengan repository lain
+     * (KeycloakUser, CloudflareZone) — single-pass query untuk efisiensi.
+     *
+     * Stats yang dipilih:
+     * - total: jumlah recording
+     * - completed: recording yang siap di-stream / di-download
+     * - total_size: total file_size (untuk capacity awareness)
+     * - expiring_soon: recording dalam 7 hari masa retensi (auto-delete by Zoom)
+     */
+    public function stats(): array
+    {
+        $row = ZoomRecording::query()
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count")
+            ->selectRaw('SUM(file_size) as total_size_bytes')
+            ->first();
+
+        // Expiring: recording yang start_time + retention_days <= 7 hari ke depan.
+        // Hitung di PHP karena MySQL/sqlite expr-nya beda — tidak worth optimasi
+        // sampai data >> 100k.
+        $expiring = ZoomRecording::query()
+            ->whereNotNull('start_time')
+            ->where('status', 'completed')
+            ->get(['start_time', 'retention_days'])
+            ->filter(function ($r) {
+                $expiresAt = $r->start_time->copy()->addDays($r->retention_days);
+                return $expiresAt->isFuture() && $expiresAt->lessThanOrEqualTo(now()->addDays(7));
+            })
+            ->count();
+
+        return [
+            'total' => (int) ($row?->total ?? 0),
+            'completed' => (int) ($row?->completed_count ?? 0),
+            'total_size_bytes' => (int) ($row?->total_size_bytes ?? 0),
+            'expiring_soon' => $expiring,
+        ];
+    }
+
     public function create(array $data): ZoomRecording
     {
         return ZoomRecording::create($data);

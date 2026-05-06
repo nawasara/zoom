@@ -38,9 +38,11 @@ class Table extends Component
             'to' => $this->to,
         ]);
 
+        // statistics() dipindahkan ke parent Index → hero stats. Sekarang
+        // section/table cukup fokus ke listing — hindari double-query stats
+        // yang sama di setiap re-render filter.
         return view('nawasara-zoom::livewire.pages.recording.section.table', [
             'recordings' => $recordings,
-            'statistics' => $repo->statistics(),
         ]);
     }
 

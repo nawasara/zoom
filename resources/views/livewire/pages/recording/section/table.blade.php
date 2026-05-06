@@ -1,12 +1,8 @@
 <div>
-    {{-- Sync info bar --}}
-    <div class="mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-neutral-400">
-        <div class="flex items-center gap-3">
-            <span class="text-blue-600">Total: {{ $statistics['total_recordings'] }}</span>
-            <span class="text-green-600">Completed: {{ $statistics['completed_recordings'] }}</span>
-            <span class="text-yellow-600">Size: {{ $statistics['total_size_gb'] }} GB</span>
-        </div>
-        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-blue-600 hover:underline">
+    {{-- Sync info bar — totals sudah di-render di hero stats Index, di sini
+         cukup link ke sync jobs untuk troubleshooting. --}}
+    <div class="mb-3 flex items-center justify-end text-xs text-gray-500 dark:text-neutral-400">
+        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
             Lihat Sync Jobs →
         </a>
     </div>
@@ -66,7 +62,7 @@
                     <td class="px-6 py-4 text-sm space-x-2 text-center">
                         @if ($recording->download_url)
                             <a href="{{ $recording->download_url }}" target="_blank"
-                                class="text-blue-600 hover:underline text-xs">
+                                class="text-emerald-700 dark:text-emerald-400 hover:underline text-xs font-medium">
                                 <x-lucide-download class="size-4 inline" />
                                 Download
                             </a>
