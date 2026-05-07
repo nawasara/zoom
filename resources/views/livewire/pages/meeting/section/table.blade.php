@@ -16,15 +16,30 @@
         $typeOptions = ['upcoming' => 'Upcoming', 'past' => 'Past'];
     @endphp
 
-    {{-- Toolbar — time-window + Type filter + search + reset + export inline.
-         Time window scoped to start_time (via repo dateRange). Default 7d
-         is bounded enough for active orgs without hiding upcoming items;
-         the resolveTimeWindow() helper centres the range around "now". --}}
+    {{-- Page header — title + description left, time-window + primary
+         action ("+ Buat Meeting") right. Both title and the create button
+         moved here from index.blade.php so they share a row with the
+         time-window's reactive state. --}}
+    <x-nawasara-ui::page-header
+        title="Zoom Meetings"
+        description="Schedule, manage, and track all your Zoom meetings"
+        :count="$meetings->total().' meetings'">
+        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+
+        @can('zoom.meeting.create')
+            <x-nawasara-ui::button :href="route('nawasara-zoom.meeting.create')" color="success">
+                <x-slot:icon><x-lucide-plus class="size-4" /></x-slot:icon>
+                Buat Meeting
+            </x-nawasara-ui::button>
+        @endcan
+    </x-nawasara-ui::page-header>
+
+    {{-- Toolbar — Type filter + search + reset + export. Time window
+         lifted to the page header above; this row narrows within the
+         active period. --}}
     <div class="space-y-2 mb-4">
         <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
             <div class="flex flex-wrap items-center gap-2 shrink-0">
-                <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
-
                 <x-nawasara-ui::filter-panel
                     label="Filter"
                     :state="['typeFilter' => $typeFilter]"
@@ -69,10 +84,10 @@
         @endif
     </div>
 
+    {{-- Title omitted; <x-page-header> renders it above. --}}
     <x-nawasara-ui::table
         stickyLast
-        :headers="['Topic', 'Host', 'Start Time', 'Duration', 'Status', 'Recording', '']"
-        :title="'Meetings ('.$meetings->total().' meetings)'">
+        :headers="['Topic', 'Host', 'Start Time', 'Duration', 'Status', 'Recording', '']">
         <x-slot:table>
             @forelse ($meetings as $meeting)
                 <tr wire:key="meeting-{{ $meeting->id }}">
