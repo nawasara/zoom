@@ -5,12 +5,17 @@ namespace Nawasara\Zoom\Livewire\Meeting\Section;
 use Livewire\Component;
 use Livewire\Attributes\Url;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
+use Nawasara\Ui\Livewire\Concerns\HasTimeWindow;
 use Nawasara\Zoom\Models\ZoomMeeting;
 use Nawasara\Zoom\Repositories\ZoomMeetingRepository;
 
 class Table extends Component
 {
     use HasExport;
+    // HasTimeWindow declares $window / $from / $to, plus resolveTimeWindow()
+    // that we use below to translate the active preset into Y-m-d bounds for
+    // the repository's existing dateRange filter.
+    use HasTimeWindow;
 
     #[Url]
     public string $search = '';
@@ -26,9 +31,6 @@ class Table extends Component
     #[Url]
     public string $typeFilter = '';
 
-    #[Url]
-    public int $page = 1;
-
     public array $selected = [];
     public bool $selectAll = false;
 
@@ -36,30 +38,44 @@ class Table extends Component
     {
         $repo = new ZoomMeetingRepository();
 
-        $meetings = $repo->paginate(25, [
-            'search' => $this->search,
-            'host_id' => $this->hostId,
-            'type' => $this->typeFilter,
-        ]);
+        $meetings = $repo->paginate(25, $this->buildFilters());
 
         return view('nawasara-zoom::livewire.pages.meeting.section.table', [
             'meetings' => $meetings,
         ]);
     }
 
+    /**
+     * Translate component state into the shape ZoomMeetingRepository expects.
+     * The repo already supports `from`/`to` Y-m-d strings via dateRange, so
+     * we resolve our preset window into bounds here instead of mutating
+     * $this->from / $this->to (those stay reserved for Custom mode).
+     *
+     * @return array<string, mixed>
+     */
+    protected function buildFilters(): array
+    {
+        [$from, $to] = $this->resolveTimeWindow();
+
+        return [
+            'search' => $this->search,
+            'host_id' => $this->hostId,
+            'type' => $this->typeFilter,
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+        ];
+    }
+
     public function resetFilters()
     {
-        $this->reset('search', 'hostId', 'typeFilter', 'page');
+        $this->reset('search', 'hostId', 'typeFilter', 'window', 'from', 'to');
+        $this->resetPage();
     }
 
     public function updatedSelectAll()
     {
         $repo = new ZoomMeetingRepository();
-        $meetings = $repo->paginate(1000, [
-            'search' => $this->search,
-            'host_id' => $this->hostId,
-            'type' => $this->typeFilter,
-        ]);
+        $meetings = $repo->paginate(1000, $this->buildFilters());
 
         $this->selected = $this->selectAll
             ? $meetings->pluck('id')->map(fn ($id) => (string) $id)->toArray()

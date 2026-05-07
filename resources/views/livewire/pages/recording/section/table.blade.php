@@ -7,9 +7,15 @@
         </a>
     </div>
 
-    {{-- Toolbar — search left/center, export right. No filter dimensions
-         in the visible UI (meetingId/from/to are URL-only programmatic
-         params), so the filter zone is omitted and search expands. --}}
+    {{-- Time-window selector — segmented preset (Hari ini/7d/30d/Custom)
+         scoped to the recording `start_time` column via the repository's
+         existing dateRange filter. Default 7 days. --}}
+    <div class="mb-3">
+        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+    </div>
+
+    {{-- Toolbar — search + export. meetingId is a URL-only programmatic
+         param (not surfaced in UI). --}}
     <div class="space-y-2 mb-4">
         <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
             {{-- Search zone — fills available space. --}}
@@ -26,7 +32,7 @@
                  zoom.recording.delete (only admins who can manage recordings
                  should pull URLs/sizes). --}}
             <div class="flex items-center gap-2 shrink-0">
-                @if ($search || $meetingId || $from || $to)
+                @if ($search || $meetingId || $window !== '7d' || $from || $to)
                     <x-nawasara-ui::tooltip text="Reset semua filter" placement="bottom">
                         <button type="button" wire:click="resetFilters"
                             aria-label="Reset filter"
@@ -114,18 +120,18 @@
             @empty
                 <tr>
                     <td colspan="7">
-                        @if ($search)
+                        @if ($search || $window !== '7d' || $from || $to)
                             <x-nawasara-ui::empty-state
                                 icon="lucide-search-x"
                                 title="Tidak ada recording yang cocok"
-                                description="Coba ubah keyword pencarian."
+                                description="Coba ubah periode/filter atau hapus search keyword."
                                 variant="filter"
                                 inline />
                         @else
                             <x-nawasara-ui::empty-state
                                 icon="lucide-video-off"
-                                title="Belum ada recording"
-                                description="Cloud recording dari meeting akan tersedia di sini setelah meeting selesai (delay ~5-15 menit)."
+                                title="Belum ada recording 7 hari terakhir"
+                                description="Pilih periode lebih panjang atau Custom untuk melihat data lebih lama."
                                 inline />
                         @endif
                     </td>

@@ -16,6 +16,13 @@
         $typeOptions = ['upcoming' => 'Upcoming', 'past' => 'Past'];
     @endphp
 
+    {{-- Time-window selector — segmented preset (Hari ini/7d/30d/Custom)
+         scoped to the meeting `start_time` column via the repository's
+         existing dateRange filter. Default 7 days. --}}
+    <div class="mb-3">
+        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+    </div>
+
     {{-- Toolbar — Type filter (single-select) + search + reset + export. --}}
     <div class="space-y-2 mb-4">
         <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
@@ -39,7 +46,7 @@
             </div>
 
             <div class="flex items-center gap-2 shrink-0">
-                @if ($search || $typeFilter || $hostId)
+                @if ($search || $typeFilter || $hostId || $window !== '7d' || $from || $to)
                     <x-nawasara-ui::tooltip text="Reset semua filter" placement="bottom">
                         <button type="button" wire:click="resetFilters"
                             aria-label="Reset filter"
@@ -118,18 +125,18 @@
             @empty
                 <tr>
                     <td colspan="7">
-                        @if ($search || $typeFilter)
+                        @if ($search || $typeFilter || $window !== '7d' || $from || $to)
                             <x-nawasara-ui::empty-state
                                 icon="lucide-search-x"
                                 title="Tidak ada meeting yang cocok"
-                                description="Coba ubah filter atau hapus search keyword."
+                                description="Coba ubah periode/filter atau hapus search keyword."
                                 variant="filter"
                                 inline />
                         @else
                             <x-nawasara-ui::empty-state
                                 icon="lucide-video"
-                                title="Belum ada meeting"
-                                description="Meeting yang di-schedule via Zoom akan auto-sync dan muncul di sini."
+                                title="Belum ada meeting 7 hari terakhir"
+                                description="Pilih periode lebih panjang atau Custom untuk melihat data lebih lama."
                                 inline />
                         @endif
                     </td>

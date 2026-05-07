@@ -5,6 +5,7 @@ namespace Nawasara\Zoom\Livewire\Recording\Section;
 use Livewire\Component;
 use Livewire\Attributes\Url;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
+use Nawasara\Ui\Livewire\Concerns\HasTimeWindow;
 use Nawasara\Zoom\Models\ZoomRecording;
 use Nawasara\Zoom\Repositories\ZoomRecordingRepository;
 use Nawasara\Zoom\Services\ZoomClient;
@@ -12,21 +13,16 @@ use Nawasara\Zoom\Services\ZoomClient;
 class Table extends Component
 {
     use HasExport;
+    // HasTimeWindow declares $window / $from / $to with #[Url] aliases.
+    // The previous bare $from / $to URL props on this class are removed
+    // because the trait owns them now (and aliases them to ?from= / ?to=).
+    use HasTimeWindow;
 
     #[Url]
     public string $search = '';
 
     #[Url]
     public string $meetingId = '';
-
-    #[Url]
-    public string $from = '';
-
-    #[Url]
-    public string $to = '';
-
-    #[Url]
-    public int $page = 1;
 
     public array $selected = [];
     public bool $selectAll = false;
@@ -35,12 +31,7 @@ class Table extends Component
     {
         $repo = new ZoomRecordingRepository();
 
-        $recordings = $repo->paginate(25, [
-            'search' => $this->search,
-            'meeting_id' => $this->meetingId,
-            'from' => $this->from,
-            'to' => $this->to,
-        ]);
+        $recordings = $repo->paginate(25, $this->buildFilters());
 
         // statistics() dipindahkan ke parent Index → hero stats. Sekarang
         // section/table cukup fokus ke listing — hindari double-query stats
@@ -50,20 +41,37 @@ class Table extends Component
         ]);
     }
 
+    /**
+     * Translate component state into the shape ZoomRecordingRepository
+     * expects. Resolve preset window into Y-m-d bounds via the trait
+     * helper so the repo's existing dateRange filter handles them.
+     *
+     * @return array<string, mixed>
+     */
+    protected function buildFilters(): array
+    {
+        [$from, $to] = $this->resolveTimeWindow();
+
+        return [
+            'search' => $this->search,
+            'meeting_id' => $this->meetingId,
+            'from' => $from?->toDateString(),
+            'to' => $to?->toDateString(),
+        ];
+    }
+
     public function resetFilters()
     {
-        $this->reset('search', 'meetingId', 'from', 'to', 'page');
+        // No WithPagination here — the repo paginator reads ?page= directly
+        // from the request, so resetting Livewire props is enough; Laravel's
+        // paginator falls back to page 1 on the next render.
+        $this->reset('search', 'meetingId', 'window', 'from', 'to');
     }
 
     public function updatedSelectAll()
     {
         $repo = new ZoomRecordingRepository();
-        $recordings = $repo->paginate(1000, [
-            'search' => $this->search,
-            'meeting_id' => $this->meetingId,
-            'from' => $this->from,
-            'to' => $this->to,
-        ]);
+        $recordings = $repo->paginate(1000, $this->buildFilters());
 
         $this->selected = $this->selectAll
             ? $recordings->pluck('id')->map(fn ($id) => (string) $id)->toArray()
