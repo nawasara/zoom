@@ -7,17 +7,15 @@
         </a>
     </div>
 
-    {{-- Time-window selector — segmented preset (Hari ini/7d/30d/Custom)
-         scoped to the recording `start_time` column via the repository's
-         existing dateRange filter. Default 7 days. --}}
-    <div class="mb-3">
-        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
-    </div>
-
-    {{-- Toolbar — search + export. meetingId is a URL-only programmatic
-         param (not surfaced in UI). --}}
+    {{-- Toolbar — time-window inline left, search center, export right.
+         No filter dimensions in visible UI (meetingId is URL-only programmatic
+         param). Time window scoped to start_time via repo dateRange. --}}
     <div class="space-y-2 mb-4">
         <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
+            {{-- Time window pinned left (no other filter to keep it
+                 grouped with). --}}
+            <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+
             {{-- Search zone — fills available space. --}}
             <div class="relative w-full md:flex-1 md:min-w-0">
                 <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3.5">

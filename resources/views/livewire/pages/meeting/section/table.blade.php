@@ -16,17 +16,15 @@
         $typeOptions = ['upcoming' => 'Upcoming', 'past' => 'Past'];
     @endphp
 
-    {{-- Time-window selector — segmented preset (Hari ini/7d/30d/Custom)
-         scoped to the meeting `start_time` column via the repository's
-         existing dateRange filter. Default 7 days. --}}
-    <div class="mb-3">
-        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
-    </div>
-
-    {{-- Toolbar — Type filter (single-select) + search + reset + export. --}}
+    {{-- Toolbar — time-window + Type filter + search + reset + export inline.
+         Time window scoped to start_time (via repo dateRange). Default 7d
+         is bounded enough for active orgs without hiding upcoming items;
+         the resolveTimeWindow() helper centres the range around "now". --}}
     <div class="space-y-2 mb-4">
         <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
             <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+
                 <x-nawasara-ui::filter-panel
                     label="Filter"
                     :state="['typeFilter' => $typeFilter]"
