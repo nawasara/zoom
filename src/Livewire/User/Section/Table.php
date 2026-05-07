@@ -4,12 +4,14 @@ namespace Nawasara\Zoom\Livewire\User\Section;
 
 use Livewire\Component;
 use Livewire\Attributes\Url;
+use Nawasara\Ui\Livewire\Concerns\HasArrayFilters;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
 use Nawasara\Zoom\Models\ZoomUser;
 use Nawasara\Zoom\Repositories\ZoomUserRepository;
 
 class Table extends Component
 {
+    use HasArrayFilters;
     use HasExport;
 
     #[Url]
@@ -17,12 +19,14 @@ class Table extends Component
 
     /**
      * License-type filter as multi-select array (e.g. ['Pro', 'Business']).
-     * Empty array == no filter.
+     * Empty array == no filter. Type hint omitted so legacy bookmarks
+     * (`?licenseType=Pro`) survive hydration; HasArrayFilters coerces
+     * the scalar at boot time.
      *
      * @var array<int, string>
      */
     #[Url]
-    public array $licenseType = [];
+    public $licenseType = [];
 
     /**
      * Status filter as multi-select array (['active', 'inactive']).
@@ -31,13 +35,22 @@ class Table extends Component
      * @var array<int, string>
      */
     #[Url]
-    public array $status = [];
+    public $status = [];
 
     #[Url]
     public int $page = 1;
 
     public array $selected = [];
     public bool $selectAll = false;
+
+    /**
+     * Filters that may receive scalar values from legacy bookmarks.
+     * HasArrayFilters wraps any scalar into [scalar] at boot.
+     */
+    protected function arrayFilters(): array
+    {
+        return ['licenseType', 'status'];
+    }
 
     public function render()
     {
