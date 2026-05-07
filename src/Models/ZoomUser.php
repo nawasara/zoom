@@ -67,14 +67,39 @@ class ZoomUser extends Model
         });
     }
 
-    public function scopeLicenseType($query, ?string $licenseType)
+    /**
+     * Polymorphic license-type filter. Accepts string for single match or
+     * array<string> for multi-select (filter-panel uses arrays). Empty
+     * value (null, '', []) is a no-op so callers can pass user input
+     * straight through.
+     *
+     * @param  string|array<int,string>|null  $licenseType
+     */
+    public function scopeLicenseType($query, string|array|null $licenseType)
     {
-        return $licenseType ? $query->where('license_type', $licenseType) : $query;
+        if (empty($licenseType)) {
+            return $query;
+        }
+
+        return is_array($licenseType)
+            ? $query->whereIn('license_type', $licenseType)
+            : $query->where('license_type', $licenseType);
     }
 
-    public function scopeStatus($query, ?string $status)
+    /**
+     * Polymorphic status filter. Same shape as scopeLicenseType.
+     *
+     * @param  string|array<int,string>|null  $status
+     */
+    public function scopeStatus($query, string|array|null $status)
     {
-        return $status ? $query->where('status', $status) : $query;
+        if (empty($status)) {
+            return $query;
+        }
+
+        return is_array($status)
+            ? $query->whereIn('status', $status)
+            : $query->where('status', $status);
     }
 
     public function getFullNameAttribute(): string

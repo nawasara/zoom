@@ -4,18 +4,34 @@ namespace Nawasara\Zoom\Livewire\User\Section;
 
 use Livewire\Component;
 use Livewire\Attributes\Url;
+use Nawasara\Ui\Livewire\Concerns\HasExport;
+use Nawasara\Zoom\Models\ZoomUser;
 use Nawasara\Zoom\Repositories\ZoomUserRepository;
 
 class Table extends Component
 {
+    use HasExport;
+
     #[Url]
     public string $search = '';
 
+    /**
+     * License-type filter as multi-select array (e.g. ['Pro', 'Business']).
+     * Empty array == no filter.
+     *
+     * @var array<int, string>
+     */
     #[Url]
-    public string $licenseType = '';
+    public array $licenseType = [];
 
+    /**
+     * Status filter as multi-select array (['active', 'inactive']).
+     * Empty array == no filter.
+     *
+     * @var array<int, string>
+     */
     #[Url]
-    public string $status = '';
+    public array $status = [];
 
     #[Url]
     public int $page = 1;
@@ -62,5 +78,38 @@ class Table extends Component
     {
         $this->selected = [];
         $this->selectAll = false;
+    }
+
+    /**
+     * Export filename base — timestamp + extension appended by HasExport.
+     */
+    protected function exportFilename(): string
+    {
+        return 'zoom-users';
+    }
+
+    /**
+     * Export FULL Zoom user dataset (no filter applied) per spec. Includes
+     * usage stats so org admins can offline-audit license utilization.
+     */
+    protected function exportData(): iterable
+    {
+        return ZoomUser::query()
+            ->orderBy('email')
+            ->get()
+            ->map(fn (ZoomUser $u) => [
+                'Email' => $u->email,
+                'First Name' => $u->first_name,
+                'Last Name' => $u->last_name,
+                'Full Name' => $u->full_name,
+                'User Type' => $u->user_type,
+                'License Type' => $u->license_type,
+                'Status' => $u->status,
+                'Last Login' => optional($u->last_login_at)->format('Y-m-d H:i'),
+                '30D Meetings' => $u->total_meetings_30d,
+                '30D Minutes' => $u->total_minutes_30d,
+                'Zoom Created' => optional($u->zoom_created_at)->format('Y-m-d H:i'),
+                'Last Synced' => optional($u->last_synced_at)->format('Y-m-d H:i'),
+            ]);
     }
 }
