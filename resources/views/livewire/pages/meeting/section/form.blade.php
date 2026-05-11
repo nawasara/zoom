@@ -1,5 +1,5 @@
 <div class="p-6 space-y-6">
-    <form wire:submit.prevent="save" class="space-y-6">
+    <form wire:submit="save" class="space-y-6">
         {{-- Host Selection --}}
         <div>
             <x-nawasara-ui::form.label for="hostId">Host <span class="text-red-500">*</span></x-nawasara-ui::form.label>
