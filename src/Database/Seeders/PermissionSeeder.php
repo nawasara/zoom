@@ -9,24 +9,29 @@ class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
+        // Permissions kept as flat list — spatie/permission's `permissions`
+        // table has no `description` column by default, so the human-readable
+        // labels that used to ride along here live in the README's
+        // Permissions section instead. Anyone needing UI labels should look
+        // them up at render time.
         $permissions = [
-            'zoom.view' => 'View Zoom module',
-            'zoom.user.view' => 'View Zoom users',
-            'zoom.meeting.view' => 'View meetings',
-            'zoom.meeting.create' => 'Create meetings',
-            'zoom.meeting.update' => 'Update meetings',
-            'zoom.meeting.delete' => 'Delete meetings',
-            'zoom.recording.view' => 'View recordings',
-            'zoom.recording.download' => 'Download recordings',
-            'zoom.recording.delete' => 'Delete recordings',
-            'zoom.sync.execute' => 'Execute Zoom sync jobs',
+            'zoom.view',
+            'zoom.user.view',
+            'zoom.meeting.view',
+            'zoom.meeting.create',
+            'zoom.meeting.update',
+            'zoom.meeting.delete',
+            'zoom.recording.view',
+            'zoom.recording.download',
+            'zoom.recording.delete',
+            'zoom.sync.execute',
         ];
 
-        foreach ($permissions as $name => $description) {
-            Permission::firstOrCreate(
-                ['name' => $name],
-                ['guard_name' => 'web', 'description' => $description]
-            );
+        foreach ($permissions as $name) {
+            Permission::firstOrCreate([
+                'name' => $name,
+                'guard_name' => 'web',
+            ]);
         }
     }
 }
