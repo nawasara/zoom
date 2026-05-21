@@ -9,7 +9,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Nawasara\Zoom\Models\ZoomUser;
 use Nawasara\Zoom\Services\ZoomClient;
-use Nawasara\Sync\Services\SyncService;
 
 class SyncZoomUsersJob implements ShouldQueue
 {
@@ -18,7 +17,7 @@ class SyncZoomUsersJob implements ShouldQueue
     public int $tries = 3;
     public int $timeout = 300;
 
-    public function handle(ZoomClient $client, SyncService $sync): void
+    public function handle(ZoomClient $client): void
     {
         if (! $client->isConfigured()) {
             return;

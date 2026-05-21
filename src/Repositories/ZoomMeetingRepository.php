@@ -23,9 +23,10 @@ class ZoomMeetingRepository
             $query->dateRange($filters['from'] ?? null, $filters['to'] ?? null);
         }
 
-        if ($filters['type'] === 'upcoming') {
+        $type = $filters['type'] ?? null;
+        if ($type === 'upcoming') {
             $query->upcoming();
-        } elseif ($filters['type'] === 'past') {
+        } elseif ($type === 'past') {
             $query->past();
         }
 

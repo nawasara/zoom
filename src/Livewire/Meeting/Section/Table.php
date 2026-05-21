@@ -2,19 +2,33 @@
 
 namespace Nawasara\Zoom\Livewire\Meeting\Section;
 
-use Livewire\Component;
+use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
+use Livewire\Component;
+use Livewire\WithPagination;
+use Nawasara\Registry\Models\Opd;
+use Nawasara\Registry\Models\Pic;
+use Nawasara\Toaster\Concerns\HasToaster;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
 use Nawasara\Ui\Livewire\Concerns\HasTimeWindow;
+use Nawasara\Zoom\Jobs\Meetings\CreateZoomMeetingJob;
+use Nawasara\Zoom\Jobs\Meetings\DeleteZoomMeetingJob;
+use Nawasara\Zoom\Jobs\Meetings\UpdateZoomMeetingJob;
 use Nawasara\Zoom\Models\ZoomMeeting;
 use Nawasara\Zoom\Repositories\ZoomMeetingRepository;
+use Nawasara\Zoom\Repositories\ZoomUserRepository;
 
 class Table extends Component
 {
     use HasExport;
+    use HasToaster;
+    // The list is paginated (repo->paginate + $meetings->links()), so this
+    // component needs WithPagination — it provides resetPage().
+    use WithPagination;
     // HasTimeWindow declares $window / $from / $to, plus resolveTimeWindow()
-    // that we use below to translate the active preset into Y-m-d bounds for
-    // the repository's existing dateRange filter.
+    // that we use below to translate the active preset into bounds for the
+    // repository's existing dateRange filter.
     use HasTimeWindow;
 
     #[Url]
@@ -25,8 +39,6 @@ class Table extends Component
 
     /**
      * Single-select derived filter: 'upcoming' | 'past' | '' (all).
-     * Stays scalar (not array) because the underlying scopes are mutually
-     * exclusive date predicates - multi-select wouldn't make semantic sense.
      */
     #[Url]
     public string $typeFilter = '';
@@ -34,22 +46,210 @@ class Table extends Component
     public array $selected = [];
     public bool $selectAll = false;
 
+    /** Detail modal — id of the meeting currently shown, null = closed. */
+    public ?int $detailId = null;
+
+    // ─── Create/Edit form modal state ───────────────────────
+    // The meeting form lives in this component as a modal, NOT a separate
+    // page — same pattern as nawasara-notification's template table.
+    public ?int $editingId = null;
+    public string $formHostId = '';
+    public ?int $formOpdId = null;
+    public ?int $formPicId = null;
+    public string $formTopic = '';
+    public ?string $formStartTime = null;
+    public int $formDuration = 60;
+    public string $formPassword = '';
+    public string $formAgenda = '';
+    public bool $formAutoRecording = false;
+    public bool $formWaitingRoom = false;
+
+    // ─── Detail modal ───────────────────────────────────────
+
+    public function openDetail(int $id): void
+    {
+        $this->detailId = $id;
+        $this->dispatch('modal-open:zoom-meeting-detail');
+    }
+
+    public function closeDetail(): void
+    {
+        $this->detailId = null;
+        $this->dispatch('modal-close:zoom-meeting-detail');
+    }
+
+    /**
+     * The meeting shown in the detail modal, relations eager-loaded.
+     */
+    public function getDetailProperty(): ?ZoomMeeting
+    {
+        if (! $this->detailId) {
+            return null;
+        }
+
+        return ZoomMeeting::with(['host', 'pic.opd'])->find($this->detailId);
+    }
+
+    // ─── Create / Edit ──────────────────────────────────────
+
+    #[On('openCreateMeeting')]
+    public function openCreate(): void
+    {
+        Gate::authorize('zoom.meeting.create');
+        $this->resetForm();
+        $this->dispatch('modal-open:zoom-meeting-form');
+    }
+
+    public function openEdit(int $id): void
+    {
+        Gate::authorize('zoom.meeting.update');
+
+        $meeting = ZoomMeeting::with('pic')->find($id);
+        if (! $meeting) {
+            return;
+        }
+
+        $this->editingId = $meeting->id;
+        $this->formHostId = $meeting->host_id ?? '';
+        $this->formTopic = $meeting->topic ?? '';
+        $this->formStartTime = $meeting->start_time?->format('Y-m-d\TH:i');
+        $this->formDuration = $meeting->duration ?? 60;
+        $this->formPassword = $meeting->password ?? '';
+        $this->formAgenda = $meeting->agenda ?? '';
+        $this->formAutoRecording = $meeting->auto_recording !== 'none';
+        $this->formWaitingRoom = (bool) $meeting->waiting_room;
+        $this->formPicId = $meeting->pic_id;
+        $this->formOpdId = $meeting->pic?->opd_id;
+        $this->resetErrorBag();
+
+        $this->dispatch('modal-open:zoom-meeting-form');
+    }
+
+    /**
+     * Clearing/changing the OPD filter drops a PIC that no longer belongs.
+     */
+    public function updatedFormOpdId(): void
+    {
+        if ($this->formPicId
+            && Pic::where('id', $this->formPicId)->where('opd_id', $this->formOpdId)->doesntExist()) {
+            $this->formPicId = null;
+        }
+    }
+
+    public function save(): void
+    {
+        Gate::authorize($this->editingId ? 'zoom.meeting.update' : 'zoom.meeting.create');
+
+        $this->validate([
+            'formHostId' => 'required|string',
+            'formTopic' => 'required|string|max:255',
+            'formStartTime' => 'required|date_format:Y-m-d\TH:i',
+            'formDuration' => 'required|integer|min:15|max:1440',
+            'formPicId' => 'nullable|integer|exists:Nawasara\Registry\Models\Pic,id',
+        ]);
+
+        // Zoom API payload — pic_id is local-only, not sent to Zoom.
+        $data = [
+            'topic' => $this->formTopic,
+            'start_time' => $this->formStartTime,
+            'duration' => $this->formDuration,
+            'password' => $this->formPassword,
+            'agenda' => $this->formAgenda,
+            'settings' => [
+                'auto_recording' => $this->formAutoRecording ? 'cloud' : 'none',
+                'waiting_room_settings' => [
+                    'is_waiting_room_enabled' => $this->formWaitingRoom,
+                ],
+            ],
+        ];
+
+        if ($this->editingId) {
+            $meeting = ZoomMeeting::findOrFail($this->editingId);
+            $meeting->update(['pic_id' => $this->formPicId]);
+            UpdateZoomMeetingJob::dispatch($meeting->meeting_id, $data);
+            $this->alert('success', 'Perubahan meeting disimpan — sinkronisasi ke Zoom berjalan di latar belakang.');
+        } else {
+            // Local placeholder row — meeting_id is null until the Zoom API
+            // assigns one. Pass the DB primary key to the job.
+            $meeting = ZoomMeeting::create([
+                'host_id' => $this->formHostId,
+                'pic_id' => $this->formPicId,
+                'topic' => $this->formTopic,
+                'start_time' => $this->formStartTime,
+                'duration' => $this->formDuration,
+                'sync_status' => 'pending',
+            ]);
+
+            CreateZoomMeetingJob::dispatch($meeting->id, $this->formHostId, $data);
+            $this->alert('success', 'Meeting dibuat — sinkronisasi ke Zoom berjalan di latar belakang.');
+        }
+
+        $this->dispatch('modal-close:zoom-meeting-form');
+        $this->resetForm();
+        $this->resetPage();
+    }
+
+    protected function resetForm(): void
+    {
+        $this->editingId = null;
+        $this->formHostId = '';
+        $this->formOpdId = null;
+        $this->formPicId = null;
+        $this->formTopic = '';
+        $this->formStartTime = null;
+        $this->formDuration = 60;
+        $this->formPassword = '';
+        $this->formAgenda = '';
+        $this->formAutoRecording = false;
+        $this->formWaitingRoom = false;
+        $this->resetErrorBag();
+    }
+
+    // ─── Delete ─────────────────────────────────────────────
+
+    /**
+     * Delete a meeting. The local row goes immediately; the Zoom-side
+     * deletion is queued. A meeting that was never synced (no meeting_id)
+     * has nothing on Zoom to delete, so the job is skipped.
+     */
+    #[On('confirm-delete')]
+    public function delete($id): void
+    {
+        Gate::authorize('zoom.meeting.delete');
+
+        $meeting = ZoomMeeting::findOrFail($id);
+        $meetingId = $meeting->meeting_id;
+
+        $meeting->delete();
+
+        if ($meetingId) {
+            DeleteZoomMeetingJob::dispatch($meetingId);
+        }
+
+        $this->dispatch('close-modal', id: 'modalConfirmDelete');
+        $this->resetPage();
+        $this->alert('success', 'Meeting dihapus.');
+    }
+
+    // ─── List + filters ─────────────────────────────────────
+
     public function render()
     {
         $repo = new ZoomMeetingRepository();
-
         $meetings = $repo->paginate(25, $this->buildFilters());
 
         return view('nawasara-zoom::livewire.pages.meeting.section.table', [
             'meetings' => $meetings,
+            'hosts' => (new ZoomUserRepository())->active()->get(),
+            'opds' => Opd::orderBy('name')->get(['id', 'name']),
+            'pics' => $this->formOpdId
+                ? Pic::where('opd_id', $this->formOpdId)->orderBy('name')->get(['id', 'name', 'position'])
+                : collect(),
         ]);
     }
 
     /**
      * Translate component state into the shape ZoomMeetingRepository expects.
-     * The repo already supports `from`/`to` Y-m-d strings via dateRange, so
-     * we resolve our preset window into bounds here instead of mutating
-     * $this->from / $this->to (those stay reserved for Custom mode).
      *
      * @return array<string, mixed>
      */
@@ -57,12 +257,16 @@ class Table extends Component
     {
         [$from, $to] = $this->resolveTimeWindow();
 
+        // Send the FULL datetime, not toDateString(). resolveTimeWindow()
+        // returns endOfDay() (…23:59:59) as the upper bound on purpose;
+        // truncating to Y-m-d collapses it to 00:00:00 and filters out every
+        // meeting later than midnight today.
         return [
             'search' => $this->search,
             'host_id' => $this->hostId,
             'type' => $this->typeFilter,
-            'from' => $from?->toDateString(),
-            'to' => $to?->toDateString(),
+            'from' => $from?->toDateTimeString(),
+            'to' => $to?->toDateTimeString(),
         ];
     }
 

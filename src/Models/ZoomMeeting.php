@@ -5,7 +5,10 @@ namespace Nawasara\Zoom\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Nawasara\Registry\Models\Pic;
 use Nawasara\Sync\Concerns\HasSyncStatus;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Snapshot of Zoom meetings.
@@ -13,12 +16,14 @@ use Nawasara\Sync\Concerns\HasSyncStatus;
 class ZoomMeeting extends Model
 {
     use HasSyncStatus;
+    use LogsActivity;
 
     protected $table = 'nawasara_zoom_meetings';
 
     protected $fillable = [
         'meeting_id',
         'host_id', // zoom user_id (FK to ZoomUser)
+        'pic_id', // optional FK to nawasara_registry_pic
         'topic',
         'start_time',
         'duration',
@@ -52,9 +57,44 @@ class ZoomMeeting extends Model
         'waiting_room' => 'boolean',
     ];
 
+    /**
+     * Audit trail — record meaningful field changes only.
+     *
+     * Deliberately EXCLUDED:
+     *   - password        : secret, must never land in the activity log
+     *   - sync_status / sync_error / last_synced_at : flip on every sync
+     *     cycle, would flood the log with non-user-driven noise
+     *   - join_url / meeting_id : assigned by Zoom, not user-edited
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'host_id',
+                'pic_id',
+                'topic',
+                'start_time',
+                'duration',
+                'agenda',
+                'status',
+                'auto_recording',
+                'waiting_room',
+            ])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn (string $eventName) => "Zoom meeting {$eventName}");
+    }
+
     public function host(): BelongsTo
     {
         return $this->belongsTo(ZoomUser::class, 'host_id', 'user_id');
+    }
+
+    /**
+     * Optional person in charge, from the registry package.
+     */
+    public function pic(): BelongsTo
+    {
+        return $this->belongsTo(Pic::class, 'pic_id');
     }
 
     public function recordings(): HasMany
