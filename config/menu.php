@@ -7,8 +7,12 @@ return [
         'label' => 'Zoom',
         'icon' => 'lucide-video',
         'url' => '',
-        'permission' => 'zoom.user.view',
-        'workspace' => 'communication',
+        // Workspace gate pakai zoom.view (permission paling dasar) — bukan
+        // zoom.user.view. Tidak semua deployment punya scope Zoom user:*;
+        // submenu tetap di-gate permission spesifiknya masing-masing, jadi
+        // entri yang tak ter-akses otomatis tidak tampil.
+        'permission' => 'zoom.view',
+        'workspace' => 'zoom',
         'submenu' => [
             [
                 'label' => 'Users',

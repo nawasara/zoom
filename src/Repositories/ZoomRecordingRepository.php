@@ -3,11 +3,11 @@
 namespace Nawasara\Zoom\Repositories;
 
 use Nawasara\Zoom\Models\ZoomRecording;
-use Illuminate\Pagination\Paginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ZoomRecordingRepository
 {
-    public function paginate(int $perPage = 25, array $filters = []): Paginator
+    public function paginate(int $perPage = 25, array $filters = []): LengthAwarePaginator
     {
         $query = ZoomRecording::query();
 

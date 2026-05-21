@@ -3,11 +3,11 @@
 namespace Nawasara\Zoom\Repositories;
 
 use Nawasara\Zoom\Models\ZoomUser;
-use Illuminate\Pagination\Paginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ZoomUserRepository
 {
-    public function paginate(int $perPage = 25, array $filters = []): Paginator
+    public function paginate(int $perPage = 25, array $filters = []): LengthAwarePaginator
     {
         $query = ZoomUser::query();
 

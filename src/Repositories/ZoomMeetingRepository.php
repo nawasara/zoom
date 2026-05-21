@@ -3,11 +3,11 @@
 namespace Nawasara\Zoom\Repositories;
 
 use Nawasara\Zoom\Models\ZoomMeeting;
-use Illuminate\Pagination\Paginator;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class ZoomMeetingRepository
 {
-    public function paginate(int $perPage = 25, array $filters = []): Paginator
+    public function paginate(int $perPage = 25, array $filters = []): LengthAwarePaginator
     {
         $query = ZoomMeeting::query();
 
