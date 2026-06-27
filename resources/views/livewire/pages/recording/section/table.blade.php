@@ -10,7 +10,8 @@
         <div class="flex flex-col md:flex-row md:flex-nowrap md:items-center gap-2">
             {{-- Time window pinned left (no other filter to keep it
                  grouped with). --}}
-            <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+            <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to"
+                :presets="['all' => 'Semua', 'today' => 'Hari ini', '7d' => '7 hari', '30d' => '30 hari']" />
 
             {{-- Search zone — fills available space. --}}
             <x-nawasara-ui::search-input model="search" placeholder="Cari topic recording..." />

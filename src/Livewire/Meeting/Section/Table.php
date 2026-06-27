@@ -233,6 +233,16 @@ class Table extends Component
 
     // ─── List + filters ─────────────────────────────────────
 
+    /**
+     * Zoom data is small + infrequent, so default to showing everything
+     * rather than a rolling 7-day window that hides most meetings (and
+     * confuses against the all-time KPI cards). Users can still narrow.
+     */
+    protected function defaultTimeWindow(): string
+    {
+        return 'all';
+    }
+
     /** Human-readable "last synced" for the sync-info-bar, or null if never. */
     #[\Livewire\Attributes\Computed]
     public function lastSyncedAt(): ?string

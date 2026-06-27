@@ -27,6 +27,16 @@ class Table extends Component
     public array $selected = [];
     public bool $selectAll = false;
 
+    /**
+     * Show all recordings by default — they're few + old, so a 7-day window
+     * leaves the table empty while the KPI cards show 27 (the confusion the
+     * user reported). Users can still narrow with the period pills.
+     */
+    protected function defaultTimeWindow(): string
+    {
+        return 'all';
+    }
+
     #[\Livewire\Attributes\Computed]
     public function lastSyncedAt(): ?string
     {

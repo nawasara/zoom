@@ -18,7 +18,8 @@
         title="Zoom Meetings"
         description="Schedule, manage, and track all your Zoom meetings"
         :count="$meetings->total().' meetings'">
-        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to" />
+        <x-nawasara-ui::time-window :window="$window" :from="$from" :to="$to"
+            :presets="['all' => 'Semua', 'today' => 'Hari ini', '7d' => '7 hari', '30d' => '30 hari']" />
 
         @can('zoom.meeting.create')
             <x-nawasara-ui::button color="success" wire:click="$dispatch('openCreateMeeting')">
