@@ -2,11 +2,29 @@
 
 namespace Nawasara\Zoom\Repositories;
 
-use Nawasara\Zoom\Models\ZoomRecording;
+use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Nawasara\Sync\Concerns\TracksLastSync;
+use Nawasara\Zoom\Jobs\SyncZoomRecordingsJob;
+use Nawasara\Zoom\Models\ZoomRecording;
 
 class ZoomRecordingRepository
 {
+    use TracksLastSync;
+
+    /** Dispatch a manual recordings sync (live + history backfill). */
+    public function syncNow(): void
+    {
+        SyncZoomRecordingsJob::dispatch(triggerSource: 'manual');
+        SyncZoomRecordingsJob::dispatch(payload: ['history' => true], triggerSource: 'manual');
+    }
+
+    /** When the recordings sync last succeeded. */
+    public function lastSyncedAt(): ?Carbon
+    {
+        return $this->lastSuccessfulSyncAt('zoom', ['sync_recordings', 'sync_recordings_history']);
+    }
+
     public function paginate(int $perPage = 25, array $filters = []): LengthAwarePaginator
     {
         $query = ZoomRecording::query();

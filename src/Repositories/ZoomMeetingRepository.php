@@ -2,11 +2,29 @@
 
 namespace Nawasara\Zoom\Repositories;
 
-use Nawasara\Zoom\Models\ZoomMeeting;
+use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Nawasara\Sync\Concerns\TracksLastSync;
+use Nawasara\Zoom\Jobs\SyncZoomMeetingsJob;
+use Nawasara\Zoom\Models\ZoomMeeting;
 
 class ZoomMeetingRepository
 {
+    use TracksLastSync;
+
+    /** Dispatch a manual meetings sync (live + history backfill). */
+    public function syncNow(): void
+    {
+        SyncZoomMeetingsJob::dispatch(triggerSource: 'manual');
+        SyncZoomMeetingsJob::dispatch(payload: ['history' => true], triggerSource: 'manual');
+    }
+
+    /** When the meetings sync last succeeded (drives the "Last sync" badge). */
+    public function lastSyncedAt(): ?Carbon
+    {
+        return $this->lastSuccessfulSyncAt('zoom', ['sync_meetings', 'sync_meetings_history']);
+    }
+
     public function paginate(int $perPage = 25, array $filters = []): LengthAwarePaginator
     {
         $query = ZoomMeeting::query();

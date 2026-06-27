@@ -233,6 +233,24 @@ class Table extends Component
 
     // ─── List + filters ─────────────────────────────────────
 
+    /** Human-readable "last synced" for the sync-info-bar, or null if never. */
+    #[\Livewire\Attributes\Computed]
+    public function lastSyncedAt(): ?string
+    {
+        $when = (new ZoomMeetingRepository())->lastSyncedAt();
+
+        return $when?->diffForHumans();
+    }
+
+    /** Manual sync button — dispatches live + history backfill. */
+    public function syncNow(): void
+    {
+        Gate::authorize('zoom.meeting.view');
+
+        (new ZoomMeetingRepository())->syncNow();
+        $this->alert('info', 'Sinkronisasi meeting (termasuk riwayat) berjalan di latar belakang. Refresh sebentar lagi.');
+    }
+
     public function render()
     {
         $repo = new ZoomMeetingRepository();

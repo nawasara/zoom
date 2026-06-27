@@ -27,6 +27,20 @@ class Table extends Component
     public array $selected = [];
     public bool $selectAll = false;
 
+    #[\Livewire\Attributes\Computed]
+    public function lastSyncedAt(): ?string
+    {
+        return (new ZoomRecordingRepository())->lastSyncedAt()?->diffForHumans();
+    }
+
+    public function syncNow(): void
+    {
+        \Illuminate\Support\Facades\Gate::authorize('zoom.recording.view');
+
+        (new ZoomRecordingRepository())->syncNow();
+        $this->dispatch('toast', type: 'info', message: 'Sinkronisasi recording (termasuk riwayat) berjalan di latar belakang.');
+    }
+
     public function render()
     {
         $repo = new ZoomRecordingRepository();

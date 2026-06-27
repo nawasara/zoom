@@ -1,13 +1,7 @@
 <div>
-    {{-- Sync info bar --}}
-    <div class="mb-3 flex items-center justify-between text-xs text-gray-500 dark:text-neutral-400">
-        <div class="flex items-center gap-3">
-            <span><strong class="text-gray-700 dark:text-neutral-300">{{ $meetings->total() }}</strong> total meeting</span>
-        </div>
-        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
-            Lihat Sync Jobs →
-        </a>
-    </div>
+    <x-nawasara-ui::sync-info-bar
+        :lastSyncedAt="$this->lastSyncedAt"
+        neverSyncedMessage='Belum pernah di-sync. Klik tombol sync untuk menarik meeting + riwayat dari Zoom.' />
 
     @php
         // Single-select derived filter (upcoming/past are mutually exclusive
@@ -61,6 +55,9 @@
                         </button>
                     </x-nawasara-ui::tooltip>
                 @endif
+
+                <x-nawasara-ui::icon-button icon="refresh-cw" tooltip="Sync meeting + riwayat dari Zoom"
+                    wire:click="syncNow" loadingTarget="syncNow" />
 
                 <x-nawasara-ui::export-button
                     action="export"

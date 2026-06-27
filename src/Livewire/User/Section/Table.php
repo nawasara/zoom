@@ -52,6 +52,20 @@ class Table extends Component
         return ['licenseType', 'status'];
     }
 
+    #[\Livewire\Attributes\Computed]
+    public function lastSyncedAt(): ?string
+    {
+        return (new ZoomUserRepository())->lastSyncedAt()?->diffForHumans();
+    }
+
+    public function syncNow(): void
+    {
+        \Illuminate\Support\Facades\Gate::authorize('zoom.user.view');
+
+        (new ZoomUserRepository())->syncNow();
+        $this->dispatch('toast', type: 'info', message: 'Sinkronisasi user Zoom berjalan di latar belakang.');
+    }
+
     public function render()
     {
         $repo = new ZoomUserRepository();

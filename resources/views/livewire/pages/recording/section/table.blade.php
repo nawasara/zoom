@@ -1,11 +1,7 @@
 <div>
-    {{-- Sync info bar — totals di hero stats Index, di sini cukup link ke
-         sync jobs untuk troubleshooting. --}}
-    <div class="mb-3 flex items-center justify-end text-xs text-gray-500 dark:text-neutral-400">
-        <a href="{{ url('admin/sync/jobs') }}" wire:navigate class="text-emerald-700 dark:text-emerald-400 hover:underline font-medium">
-            Lihat Sync Jobs →
-        </a>
-    </div>
+    <x-nawasara-ui::sync-info-bar
+        :lastSyncedAt="$this->lastSyncedAt"
+        neverSyncedMessage='Belum pernah di-sync. Klik tombol sync untuk menarik recording + riwayat dari Zoom.' />
 
     {{-- Toolbar — time-window inline left, search center, export right.
          No filter dimensions in visible UI (meetingId is URL-only programmatic
@@ -32,6 +28,9 @@
                         </button>
                     </x-nawasara-ui::tooltip>
                 @endif
+
+                <x-nawasara-ui::icon-button icon="refresh-cw" tooltip="Sync recording + riwayat dari Zoom"
+                    wire:click="syncNow" loadingTarget="syncNow" />
 
                 <x-nawasara-ui::export-button
                     action="export"

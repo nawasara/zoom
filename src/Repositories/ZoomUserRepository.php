@@ -2,11 +2,28 @@
 
 namespace Nawasara\Zoom\Repositories;
 
-use Nawasara\Zoom\Models\ZoomUser;
+use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Nawasara\Sync\Concerns\TracksLastSync;
+use Nawasara\Zoom\Jobs\SyncZoomUsersJob;
+use Nawasara\Zoom\Models\ZoomUser;
 
 class ZoomUserRepository
 {
+    use TracksLastSync;
+
+    /** Dispatch a manual users sync. */
+    public function syncNow(): void
+    {
+        SyncZoomUsersJob::dispatch(triggerSource: 'manual');
+    }
+
+    /** When the users sync last succeeded. */
+    public function lastSyncedAt(): ?Carbon
+    {
+        return $this->lastSuccessfulSyncAt('zoom', 'sync_users');
+    }
+
     public function paginate(int $perPage = 25, array $filters = []): LengthAwarePaginator
     {
         $query = ZoomUser::query();
