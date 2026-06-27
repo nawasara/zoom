@@ -62,6 +62,52 @@ class ZoomClient
     }
 
     /**
+     * GET an endpoint and follow Zoom's next_page_token pagination until
+     * exhausted, merging the items found under $itemsKey across every page.
+     * Zoom caps page_size at 300; without this loop accounts with more
+     * users/meetings/recordings than one page were silently truncated.
+     *
+     * Returns the last page's JSON but with $itemsKey replaced by the merged
+     * list (so existing callers reading $response[$itemsKey] get everything).
+     *
+     * @param  array<string,mixed>  $params
+     * @return array<string,mixed>
+     */
+    protected function getAllPages(string $url, string $itemsKey, array $params = []): array
+    {
+        $params = array_merge(['page_size' => 300], $params);
+        $items = [];
+        $last = [];
+        $token = null;
+        $guard = 0;
+
+        do {
+            $query = $params;
+            if ($token) {
+                // next_page_token is mutually exclusive with page_number.
+                unset($query['page_number']);
+                $query['next_page_token'] = $token;
+            }
+
+            $response = $this->api()->get($url, $query);
+            if (! $response->successful()) {
+                throw new \Exception("Failed to fetch {$url}: ".$response->body());
+            }
+
+            $last = $response->json();
+            foreach (($last[$itemsKey] ?? []) as $item) {
+                $items[] = $item;
+            }
+
+            $token = $last['next_page_token'] ?? null;
+        } while ($token && $guard++ < 100);
+
+        $last[$itemsKey] = $items;
+
+        return $last;
+    }
+
+    /**
      * Test connection to Zoom. Called from Vault UI.
      */
     public function testConnection(?string $instance = null): array
@@ -95,18 +141,8 @@ class ZoomClient
      */
     public function getUsers(array $params = []): array
     {
-        $defaults = [
-            'page_size' => 300,
-            'page_number' => 1,
-        ];
-
-        $response = $this->api()->get('/users', array_merge($defaults, $params));
-
-        if (! $response->successful()) {
-            throw new \Exception('Failed to fetch users: '.$response->body());
-        }
-
-        return $response->json();
+        // Follows next_page_token, so accounts with >300 users sync fully.
+        return $this->getAllPages('/users', 'users', $params);
     }
 
     /**
@@ -131,18 +167,28 @@ class ZoomClient
      */
     public function getMeetings(string $userId, string $type = 'scheduled', array $params = []): array
     {
-        $defaults = [
-            'type' => $type,
-            'page_size' => 300,
-        ];
+        return $this->getAllPages("/users/{$userId}/meetings", 'meetings', array_merge(['type' => $type], $params));
+    }
 
-        $response = $this->api()->get("/users/{$userId}/meetings", array_merge($defaults, $params));
-
-        if (! $response->successful()) {
-            throw new \Exception("Failed to fetch meetings for user {$userId}: ".$response->body());
-        }
-
-        return $response->json();
+    /**
+     * Historical meetings from the Reports API. Unlike /users/{id}/meetings
+     * (which only returns *scheduled* meetings, and only for a short window),
+     * /report/users/{id}/meetings returns EVERY meeting the user hosted in the
+     * date range — including instant meetings — which is what "riwayat yang
+     * telah lalu" needs. Date range is capped to one month per Zoom's API, so
+     * callers loop month-by-month. Requires the report:read:admin scope on the
+     * Zoom app; without it Zoom returns 400/4xx and this throws (the caller
+     * logs + continues).
+     *
+     * @return array<string,mixed>  has a 'meetings' key (merged across pages)
+     */
+    public function getUserMeetingsReport(string $userId, string $from, string $to, array $params = []): array
+    {
+        return $this->getAllPages(
+            "/report/users/{$userId}/meetings",
+            'meetings',
+            array_merge(['from' => $from, 'to' => $to, 'type' => 'past'], $params),
+        );
     }
 
     /**
@@ -205,22 +251,14 @@ class ZoomClient
     // ─── Recordings ─────────────────────────────────────
 
     /**
-     * List recordings for user
+     * List a user's cloud recordings. Pass 'from'/'to' (Y-m-d) to pull a
+     * historical window — the recordings endpoint also defaults to a short
+     * recent window, so backfill loops month-by-month like the meetings
+     * report. Follows next_page_token.
      */
     public function getRecordings(string $userId, array $params = []): array
     {
-        $defaults = [
-            'page_size' => 300,
-            'page_number' => 1,
-        ];
-
-        $response = $this->api()->get("/users/{$userId}/recordings", array_merge($defaults, $params));
-
-        if (! $response->successful()) {
-            throw new \Exception("Failed to fetch recordings for user {$userId}: ".$response->body());
-        }
-
-        return $response->json();
+        return $this->getAllPages("/users/{$userId}/recordings", 'meetings', $params);
     }
 
     /**

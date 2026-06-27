@@ -1,21 +1,26 @@
 <?php
 
 return [
-    // Sync interval untuk user list (minutes)
-    'user_sync_interval' => 60,
+    // Scheduler — set false to disable all automatic Zoom syncing.
+    'scheduler' => [
+        'enabled' => env('ZOOM_SCHEDULER_ENABLED', true),
+    ],
 
-    // Sync interval untuk meeting list (minutes)
-    'meeting_sync_interval' => 5,
+    // Sync cadence (minutes). cron is */{interval}, so keep ≤ 60.
+    'user_sync_interval' => env('ZOOM_USER_SYNC_INTERVAL', 60),
+    'meeting_sync_interval' => env('ZOOM_MEETING_SYNC_INTERVAL', 5),
+    'recording_sync_interval' => env('ZOOM_RECORDING_SYNC_INTERVAL', 30),
 
-    // Sync interval untuk recording list (minutes)
-    'recording_sync_interval' => 30,
+    // How far back the daily history backfill reaches (months). Uses the Zoom
+    // Reports API (needs report:read:admin scope on the Zoom app).
+    'history_months' => env('ZOOM_HISTORY_MONTHS', 6),
 
-    // Records per page
+    // Records per page (UI pagination).
     'per_page' => 25,
 
-    // Cache TTL dalam seconds
+    // Cache TTL (seconds).
     'cache_ttl' => 300,
 
-    // Webhook secret (set via Vault)
+    // Webhook secret.
     'webhook_secret' => env('ZOOM_WEBHOOK_SECRET', null),
 ];
