@@ -6,6 +6,7 @@ return [
     [
         'label' => 'Zoom',
         'icon' => 'lucide-video',
+        'group' => 'Layanan',
         'url' => '',
         // Workspace gate pakai zoom.view (permission paling dasar) — bukan
         // zoom.user.view. Tidak semua deployment punya scope Zoom user:*;
