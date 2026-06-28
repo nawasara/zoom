@@ -34,6 +34,7 @@
         "spatie/laravel-activitylog": "^4.9",
         "spatie/laravel-permission": "^6.0",
         "nawasara/ui": "*",
+        "nawasara/search": "*",
         "nawasara/sync": "*",
         "nawasara/vault": "*",
         "nawasara/registry": "*",
