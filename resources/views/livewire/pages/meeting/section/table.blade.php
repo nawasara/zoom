@@ -416,41 +416,8 @@
         </x-slot:footer>
     </x-nawasara-ui::modal>
 
-    @once
-        @push('script')
-            <script>
-                document.addEventListener('alpine:init', () => {
-                    window.Alpine.data('zoomDateTimePicker', () => ({
-                        _fp: null,
-                        init() {
-                            const mount = () => {
-                                if (! window.flatpickr) { setTimeout(mount, 50); return; }
-                                this._fp = window.flatpickr(this.$refs.input, {
-                                    enableTime: true,
-                                    time_24hr: true,
-                                    // Must match the save() date_format:Y-m-d\TH:i rule.
-                                    dateFormat: 'Y-m-d\\TH:i',
-                                    altInput: true,
-                                    altFormat: 'd M Y, H:i',
-                                    minDate: 'today',
-                                    defaultDate: this.$refs.input.value || null,
-                                    onChange: (dates, str) => {
-                                        this.$wire.set('formStartTime', str);
-                                    },
-                                    onOpen: (selected, str, fp) => {
-                                        fp.calendarContainer.setAttribute('data-theme',
-                                            document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-                                    },
-                                });
-                            };
-                            mount();
-                        },
-                        destroy() {
-                            if (this._fp) this._fp.destroy();
-                        },
-                    }));
-                });
-            </script>
-        @endpush
-    @endonce
+    {{-- Alpine.data('zoomDateTimePicker', ...) lives in resources/js/app.js
+         (alpine:init), NOT a @push('script') block — @push scripts don't re-run
+         after wire:navigate, which left it "not defined" when reaching this page
+         by navigation. See reference_alpine_magic_wire_navigate. --}}
 </div>
