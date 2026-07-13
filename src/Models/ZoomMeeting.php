@@ -113,6 +113,21 @@ class ZoomMeeting extends Model
         return $this->hasMany(ZoomRecording::class, 'meeting_id', 'meeting_id');
     }
 
+    /**
+     * start_time as a Carbon in the meeting's timezone (default Asia/Jakarta).
+     * The column stores an absolute UTC instant; this is what the UI should
+     * display so a WIB-scheduled meeting shows the WIB wall-clock time.
+     */
+    public function getStartTimeLocalAttribute(): ?\Carbon\Carbon
+    {
+        if (! $this->start_time) {
+            return null;
+        }
+        $tz = $this->timezone ?: config('nawasara-zoom.timezone', 'Asia/Jakarta');
+
+        return $this->start_time->copy()->timezone($tz);
+    }
+
     public function scopeUpcoming($query)
     {
         return $query->where('status', 'not_started')

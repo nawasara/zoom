@@ -1,6 +1,11 @@
 <?php
 
 return [
+    // Timezone all meetings are scheduled/displayed in. The date picker gives a
+    // wall-clock time with no offset; this is the zone Zoom is told to interpret
+    // it in, and the zone the UI renders start_time back in.
+    'timezone' => env('ZOOM_TIMEZONE', 'Asia/Jakarta'),
+
     // Scheduler — set false to disable all automatic Zoom syncing.
     'scheduler' => [
         'enabled' => env('ZOOM_SCHEDULER_ENABLED', true),

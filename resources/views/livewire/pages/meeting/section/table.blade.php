@@ -93,7 +93,7 @@
                         @endif
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-neutral-300">
-                        {{ $meeting->start_time?->format('d M Y H:i') ?? '-' }}
+                        {{ $meeting->start_time_local?->format('d M Y H:i') ?? '-' }}{{ $meeting->start_time_local ? ' WIB' : '' }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-neutral-300">
                         {{ $meeting->duration }} min
@@ -210,7 +210,7 @@
                 <div>
                     <dt class="text-gray-500 dark:text-neutral-400">Start Time</dt>
                     <dd class="mt-0.5 text-gray-900 dark:text-neutral-100">
-                        {{ optional($m->start_time)->format('d M Y, H:i') ?? '-' }}
+                        {{ optional($m->start_time_local)->format('d M Y, H:i') ?? '-' }}{{ $m->start_time_local ? ' WIB' : '' }}
                     </dd>
                 </div>
                 <div>
@@ -340,6 +340,16 @@
                     @error('formPjUserId')
                         <span class="mt-1 block text-xs text-red-600">{{ $message }}</span>
                     @enderror
+                    @if ($formOpdId)
+                        @can('registry.membership.manage')
+                            <button type="button"
+                                x-on:click="$dispatch('open-modal', { id: 'zoom-add-pj', loading: false })"
+                                class="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300">
+                                <x-lucide-user-plus class="size-3.5" />
+                                Tambah PJ baru ke OPD ini
+                            </button>
+                        @endcan
+                    @endif
                 </div>
             </div>
 
@@ -416,6 +426,59 @@
             <x-nawasara-ui::button type="submit" form="zoom-meeting-form-el" color="success">
                 {{ $editingId ? 'Update Meeting' : 'Create Meeting' }}
             </x-nawasara-ui::button>
+        </x-slot:footer>
+    </x-nawasara-ui::modal>
+
+    {{-- Add a Keycloak user (not yet in any OPD) as this OPD's PJ. Sits OUTSIDE
+         the meeting form so its own inputs don't submit the meeting. --}}
+    <x-nawasara-ui::modal id="zoom-add-pj" maxWidth="lg"
+        title="Tambah Penanggung Jawab ke OPD">
+        <div class="space-y-4">
+            <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                Cari user Keycloak yang <strong>belum tergabung di OPD manapun</strong>.
+                User yang dipilih akan ditambahkan sebagai anggota OPD ini lalu
+                langsung dipilih sebagai penanggung jawab.
+            </p>
+
+            <div>
+                <x-nawasara-ui::form.input
+                    wire:model.live.debounce.400ms="pjSearch"
+                    placeholder="Ketik nama, username, atau email (min. 2 huruf)…"
+                    autocomplete="off" />
+            </div>
+
+            <div class="max-h-72 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-700">
+                @php $pjResults = $this->unassignedUserResults(); @endphp
+                @forelse ($pjResults as $u)
+                    <button type="button"
+                        wire:key="unassigned-{{ $u['user_id'] }}"
+                        wire:click="addPjToOpd({{ $u['user_id'] }})"
+                        class="flex w-full items-center justify-between gap-3 border-b border-neutral-100 px-3 py-2.5 text-left last:border-0 hover:bg-emerald-50 dark:border-neutral-800 dark:hover:bg-emerald-900/20">
+                        <span class="min-w-0">
+                            <span class="block truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">{{ $u['name'] }}</span>
+                            @if ($u['nip'])
+                                <span class="block truncate text-xs text-neutral-500 dark:text-neutral-400">NIP {{ $u['nip'] }}</span>
+                            @endif
+                        </span>
+                        <span class="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            <x-lucide-plus class="size-3.5" /> Tambah
+                        </span>
+                    </button>
+                @empty
+                    <div class="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                        @if (mb_strlen(trim($pjSearch)) < 2)
+                            Ketik minimal 2 huruf untuk mencari.
+                        @else
+                            Tidak ada user tanpa OPD yang cocok.
+                        @endif
+                    </div>
+                @endforelse
+            </div>
+        </div>
+
+        <x-slot:footer>
+            <x-nawasara-ui::button color="neutral" variant="outline"
+                x-on:click="$dispatch('close-modal', 'zoom-add-pj')">Tutup</x-nawasara-ui::button>
         </x-slot:footer>
     </x-nawasara-ui::modal>
 

@@ -7,6 +7,7 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Nawasara\Keycloak\Models\KeycloakUser;
 use Nawasara\Keycloak\Support\KeycloakProfile;
 use Nawasara\Registry\Models\Membership;
 use Nawasara\Registry\Models\Opd;
@@ -62,6 +63,10 @@ class Table extends Component
     public ?int $formPjUserId = null;
     public string $formTopic = '';
     public ?string $formStartTime = null;
+
+    // "+ Tambah PJ" flow: search Keycloak users who aren't yet in any OPD and
+    // add the chosen one as a member of the selected OPD (one user = one OPD).
+    public string $pjSearch = '';
     public int $formDuration = 60;
     public string $formPassword = '';
     public string $formAgenda = '';
@@ -116,7 +121,9 @@ class Table extends Component
         $this->editingId = $meeting->id;
         $this->formHostId = $meeting->host_id ?? '';
         $this->formTopic = $meeting->topic ?? '';
-        $this->formStartTime = $meeting->start_time?->format('Y-m-d\TH:i');
+        // Pre-fill the picker with the local (WIB) wall-clock, matching how the
+        // user originally entered it — not the UTC instant stored in the column.
+        $this->formStartTime = $meeting->start_time_local?->format('Y-m-d\TH:i');
         $this->formDuration = $meeting->duration ?? 60;
         $this->formPassword = $meeting->password ?? '';
         $this->formAgenda = $meeting->agenda ?? '';
@@ -160,10 +167,18 @@ class Table extends Component
             'formPjUserId' => 'nullable|integer|exists:users,id',
         ]);
 
+        // Meetings are scheduled in local time. The picker gives a wall-clock
+        // string (Y-m-d\TH:i) with no offset; Zoom interprets start_time in the
+        // `timezone` we send, so ALWAYS send Asia/Jakarta — otherwise Zoom
+        // treats it as GMT and the meeting shifts (and could roll back a day).
+        $tz = config('nawasara-zoom.timezone', 'Asia/Jakarta');
+
         // Zoom API payload — pj_user_id is local-only, not sent to Zoom.
         $data = [
             'topic' => $this->formTopic,
+            'type' => 2, // scheduled meeting
             'start_time' => $this->formStartTime,
+            'timezone' => $tz,
             'duration' => $this->formDuration,
             'password' => $this->formPassword,
             'agenda' => $this->formAgenda,
@@ -175,9 +190,21 @@ class Table extends Component
             ],
         ];
 
+        // Interpret the wall-clock picker value in the meeting timezone, then
+        // convert to UTC so the stored instant is correct (app + DB are UTC;
+        // the datetime cast persists the value as-is without converting).
+        $startAt = \Carbon\Carbon::createFromFormat('Y-m-d\TH:i', $this->formStartTime, $tz)
+            ->utc();
+
         if ($this->editingId) {
             $meeting = ZoomMeeting::findOrFail($this->editingId);
-            $meeting->update(['pj_user_id' => $this->formPjUserId]);
+            $meeting->update([
+                'pj_user_id' => $this->formPjUserId,
+                'topic'      => $this->formTopic,
+                'start_time' => $startAt,
+                'timezone'   => $tz,
+                'duration'   => $this->formDuration,
+            ]);
             UpdateZoomMeetingJob::dispatch($meeting->meeting_id, $data);
             $this->alert('success', 'Perubahan meeting disimpan — sinkronisasi ke Zoom berjalan di latar belakang.');
         } else {
@@ -187,7 +214,8 @@ class Table extends Component
                 'host_id' => $this->formHostId,
                 'pj_user_id' => $this->formPjUserId,
                 'topic' => $this->formTopic,
-                'start_time' => $this->formStartTime,
+                'start_time' => $startAt,
+                'timezone' => $tz,
                 'duration' => $this->formDuration,
                 'sync_status' => 'pending',
             ]);
@@ -305,6 +333,77 @@ class Table extends Component
             ->filter(fn ($m) => $m->user !== null)
             ->mapWithKeys(fn ($m) => [$m->user_id => KeycloakProfile::for($m->user)->name])
             ->all();
+    }
+
+    /**
+     * Search Keycloak users who are NOT yet a member of any OPD, so an operator
+     * can add one as this OPD's PJ. Matched to a Laravel user via username/email
+     * (the join key used everywhere). Returns up to 15 candidates.
+     *
+     * @return array<int, array{user_id:int, name:string, nip:?string}>
+     */
+    public function unassignedUserResults(): array
+    {
+        $term = trim($this->pjSearch);
+        if (mb_strlen($term) < 2) {
+            return [];
+        }
+
+        $userModel = config('auth.providers.users.model');
+        $assignedUserIds = Membership::pluck('user_id')->all();
+
+        // Find matching KC snapshots, then resolve to Laravel users not already
+        // in an OPD.
+        $kcMatches = KeycloakUser::query()
+            ->search($term)
+            ->limit(40)
+            ->get(['username', 'email']);
+
+        $usernames = $kcMatches->pluck('username')->filter()->all();
+        $emails    = $kcMatches->pluck('email')->filter()->all();
+
+        return $userModel::query()
+            ->whereNotIn('id', $assignedUserIds)
+            ->where(fn ($q) => $q->whereIn('username', $usernames)->orWhereIn('email', $emails))
+            ->limit(15)
+            ->get()
+            ->map(function ($u) {
+                $p = KeycloakProfile::for($u);
+                return ['user_id' => $u->id, 'name' => $p->name, 'nip' => $p->nip];
+            })
+            ->all();
+    }
+
+    /**
+     * Add a Keycloak user as an active member of the selected OPD, then select
+     * them as PJ. Guarded: the user must not already belong to an OPD (one user
+     * = one OPD), and an OPD must be chosen first.
+     */
+    public function addPjToOpd(int $userId): void
+    {
+        Gate::authorize('registry.membership.manage');
+
+        if (! $this->formOpdId) {
+            $this->alert('error', 'Pilih OPD terlebih dahulu.');
+            return;
+        }
+
+        // Fail-safe: never create a second membership for a user.
+        if (Membership::where('user_id', $userId)->exists()) {
+            $this->alert('error', 'User sudah terdaftar di OPD lain.');
+            return;
+        }
+
+        Membership::create([
+            'user_id' => $userId,
+            'opd_id'  => $this->formOpdId,
+            'aktif'   => true,
+        ]);
+
+        $this->formPjUserId = $userId;
+        $this->pjSearch = '';
+        $this->dispatch('close-modal', 'zoom-add-pj');
+        $this->alert('success', 'Penanggung jawab ditambahkan ke OPD & dipilih.');
     }
 
     /**

@@ -39,6 +39,7 @@
         "nawasara/sync": "*",
         "nawasara/vault": "*",
         "nawasara/registry": "*",
+        "nawasara/notification": "*",
         "livewire/livewire": "^3.0"
     },
     "extra": {

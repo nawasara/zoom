@@ -17,6 +17,12 @@ abstract class AbstractZoomMeetingJob implements ShouldQueue
     public int $tries = 3;
     public int $timeout = 60;
 
+    // Meeting create/update/delete are user-initiated and must reach Zoom fast,
+    // so they run on a dedicated priority queue that bulk sync jobs never share.
+    // A property (not onQueue in a constructor) so child jobs with their own
+    // constructors don't need to call parent::__construct().
+    public $queue = 'zoom-priority';
+
     protected function updateMeetingSync(string $meetingId, string $status, ?string $error = null): void
     {
         ZoomMeeting::where('meeting_id', $meetingId)->update([
