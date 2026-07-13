@@ -194,12 +194,13 @@
                     </dd>
                 </div>
                 <div>
-                    <dt class="text-gray-500 dark:text-neutral-400">PIC</dt>
+                    <dt class="text-gray-500 dark:text-neutral-400">Penanggung Jawab</dt>
                     <dd class="mt-0.5 text-gray-900 dark:text-neutral-100">
-                        @if ($m->pic)
-                            {{ $m->pic->name }}
-                            @if ($m->pic->opd)
-                                <span class="text-gray-500 dark:text-neutral-400">— {{ $m->pic->opd->name }}</span>
+                        @if ($m->penanggungJawab)
+                            @php $pjProfile = $m->pjProfile(); @endphp
+                            {{ $pjProfile->name }}
+                            @if ($pjProfile->nip)
+                                <span class="text-gray-500 dark:text-neutral-400">— {{ $pjProfile->nip }}</span>
                             @endif
                         @else
                             <span class="text-gray-400">-</span>
@@ -315,26 +316,28 @@
                 @enderror
             </div>
 
-            {{-- PIC (optional) — OPD filters the PIC list --}}
+            {{-- Penanggung Jawab (optional) — pick an OPD first, then a member
+                 (user) of that OPD sourced from registry memberships. The OPD
+                 itself isn't stored on the meeting; it's derived from the PJ's
+                 membership when displaying. --}}
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <x-nawasara-ui::form.label for="formOpdId">OPD <span class="text-xs font-normal text-gray-400">(opsional)</span></x-nawasara-ui::form.label>
-                    <select id="formOpdId" wire:model.live="formOpdId" class="{{ $fieldClass }}">
-                        <option value="">Semua OPD</option>
-                        @foreach ($opds as $opd)
-                            <option value="{{ $opd->id }}">{{ $opd->name }}</option>
-                        @endforeach
-                    </select>
+                    <x-nawasara-ui::form.select
+                        label="OPD"
+                        wire:model.live="formOpdId"
+                        :options="$opds->pluck('name', 'id')->all()"
+                        placeholder="Pilih OPD"
+                        hint="Opsional — pilih OPD untuk memfilter penanggung jawab" />
                 </div>
                 <div>
-                    <x-nawasara-ui::form.label for="formPicId">PIC <span class="text-xs font-normal text-gray-400">(opsional)</span></x-nawasara-ui::form.label>
-                    <select id="formPicId" wire:model="formPicId" class="{{ $fieldClass }}" @disabled(! $formOpdId)>
-                        <option value="">{{ $formOpdId ? '-- Pilih PIC --' : 'Pilih OPD dulu' }}</option>
-                        @foreach ($pics as $pic)
-                            <option value="{{ $pic->id }}">{{ $pic->name }}@if ($pic->position) — {{ $pic->position }}@endif</option>
-                        @endforeach
-                    </select>
-                    @error('formPicId')
+                    <x-nawasara-ui::form.select
+                        label="Penanggung Jawab"
+                        wire:model="formPjUserId"
+                        :options="$pjCandidates"
+                        :placeholder="$formOpdId ? 'Pilih Penanggung Jawab' : 'Pilih OPD dulu'"
+                        :disabled="! $formOpdId"
+                        hint="Opsional" />
+                    @error('formPjUserId')
                         <span class="mt-1 block text-xs text-red-600">{{ $message }}</span>
                     @enderror
                 </div>

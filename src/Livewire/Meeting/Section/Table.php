@@ -7,8 +7,9 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Nawasara\Keycloak\Support\KeycloakProfile;
+use Nawasara\Registry\Models\Membership;
 use Nawasara\Registry\Models\Opd;
-use Nawasara\Registry\Models\Pic;
 use Nawasara\Toaster\Concerns\HasToaster;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
 use Nawasara\Ui\Livewire\Concerns\HasTimeWindow;
@@ -54,8 +55,11 @@ class Table extends Component
     // page — same pattern as nawasara-notification's template table.
     public ?int $editingId = null;
     public string $formHostId = '';
+    // Penanggung jawab: user picks an OPD, then a member (user) of that OPD.
+    // The OPD itself isn't stored on the meeting — it's derived from the PJ's
+    // membership when displaying.
     public ?int $formOpdId = null;
-    public ?int $formPicId = null;
+    public ?int $formPjUserId = null;
     public string $formTopic = '';
     public ?string $formStartTime = null;
     public int $formDuration = 60;
@@ -87,7 +91,7 @@ class Table extends Component
             return null;
         }
 
-        return ZoomMeeting::with(['host', 'pic.opd'])->find($this->detailId);
+        return ZoomMeeting::with(['host', 'penanggungJawab'])->find($this->detailId);
     }
 
     // ─── Create / Edit ──────────────────────────────────────
@@ -104,7 +108,7 @@ class Table extends Component
     {
         Gate::authorize('zoom.meeting.update');
 
-        $meeting = ZoomMeeting::with('pic')->find($id);
+        $meeting = ZoomMeeting::find($id);
         if (! $meeting) {
             return;
         }
@@ -118,21 +122,29 @@ class Table extends Component
         $this->formAgenda = $meeting->agenda ?? '';
         $this->formAutoRecording = $meeting->auto_recording !== 'none';
         $this->formWaitingRoom = (bool) $meeting->waiting_room;
-        $this->formPicId = $meeting->pic_id;
-        $this->formOpdId = $meeting->pic?->opd_id;
+        $this->formPjUserId = $meeting->pj_user_id;
+        // Derive the OPD (for the OPD → member dropdown) from the PJ's
+        // membership — the meeting doesn't store opd_id itself.
+        $this->formOpdId = $meeting->pj_user_id
+            ? Membership::where('user_id', $meeting->pj_user_id)->where('aktif', true)->value('opd_id')
+            : null;
         $this->resetErrorBag();
 
         $this->dispatch('modal-open:zoom-meeting-form');
     }
 
     /**
-     * Clearing/changing the OPD filter drops a PIC that no longer belongs.
+     * Clearing/changing the OPD filter drops a PJ that is no longer a member
+     * of the selected OPD.
      */
     public function updatedFormOpdId(): void
     {
-        if ($this->formPicId
-            && Pic::where('id', $this->formPicId)->where('opd_id', $this->formOpdId)->doesntExist()) {
-            $this->formPicId = null;
+        if ($this->formPjUserId
+            && Membership::where('user_id', $this->formPjUserId)
+                ->where('opd_id', $this->formOpdId)
+                ->where('aktif', true)
+                ->doesntExist()) {
+            $this->formPjUserId = null;
         }
     }
 
@@ -145,10 +157,10 @@ class Table extends Component
             'formTopic' => 'required|string|max:255',
             'formStartTime' => 'required|date_format:Y-m-d\TH:i',
             'formDuration' => 'required|integer|min:15|max:1440',
-            'formPicId' => 'nullable|integer|exists:Nawasara\Registry\Models\Pic,id',
+            'formPjUserId' => 'nullable|integer|exists:users,id',
         ]);
 
-        // Zoom API payload — pic_id is local-only, not sent to Zoom.
+        // Zoom API payload — pj_user_id is local-only, not sent to Zoom.
         $data = [
             'topic' => $this->formTopic,
             'start_time' => $this->formStartTime,
@@ -165,7 +177,7 @@ class Table extends Component
 
         if ($this->editingId) {
             $meeting = ZoomMeeting::findOrFail($this->editingId);
-            $meeting->update(['pic_id' => $this->formPicId]);
+            $meeting->update(['pj_user_id' => $this->formPjUserId]);
             UpdateZoomMeetingJob::dispatch($meeting->meeting_id, $data);
             $this->alert('success', 'Perubahan meeting disimpan — sinkronisasi ke Zoom berjalan di latar belakang.');
         } else {
@@ -173,7 +185,7 @@ class Table extends Component
             // assigns one. Pass the DB primary key to the job.
             $meeting = ZoomMeeting::create([
                 'host_id' => $this->formHostId,
-                'pic_id' => $this->formPicId,
+                'pj_user_id' => $this->formPjUserId,
                 'topic' => $this->formTopic,
                 'start_time' => $this->formStartTime,
                 'duration' => $this->formDuration,
@@ -194,7 +206,7 @@ class Table extends Component
         $this->editingId = null;
         $this->formHostId = '';
         $this->formOpdId = null;
-        $this->formPicId = null;
+        $this->formPjUserId = null;
         $this->formTopic = '';
         $this->formStartTime = null;
         $this->formDuration = 60;
@@ -270,10 +282,29 @@ class Table extends Component
             'meetings' => $meetings,
             'hosts' => (new ZoomUserRepository())->active()->get(),
             'opds' => Opd::orderBy('name')->get(['id', 'name']),
-            'pics' => $this->formOpdId
-                ? Pic::where('opd_id', $this->formOpdId)->orderBy('name')->get(['id', 'name', 'position'])
-                : collect(),
+            'pjCandidates' => $this->pjCandidates(),
         ]);
+    }
+
+    /**
+     * Penanggung-jawab candidates for the currently-selected OPD: active
+     * members of that OPD, keyed by user id → resolved display name.
+     *
+     * @return array<int, string>
+     */
+    protected function pjCandidates(): array
+    {
+        if (! $this->formOpdId) {
+            return [];
+        }
+
+        return Membership::where('opd_id', $this->formOpdId)
+            ->where('aktif', true)
+            ->with('user')
+            ->get()
+            ->filter(fn ($m) => $m->user !== null)
+            ->mapWithKeys(fn ($m) => [$m->user_id => KeycloakProfile::for($m->user)->name])
+            ->all();
     }
 
     /**

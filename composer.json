@@ -1,6 +1,6 @@
 {
     "name": "nawasara/zoom",
-    "description": "Zoom meeting management dashboard for Nawasara — user management, meeting CRUD, recording management, and webhook integration with DB-cached snapshots and queue-backed mutations.",
+    "description": "Zoom meeting management dashboard for Nawasara \u2014 user management, meeting CRUD, recording management, and webhook integration with DB-cached snapshots and queue-backed mutations.",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -34,6 +34,7 @@
         "spatie/laravel-activitylog": "^4.9",
         "spatie/laravel-permission": "^6.0",
         "nawasara/ui": "*",
+        "nawasara/keycloak": "*",
         "nawasara/search": "*",
         "nawasara/sync": "*",
         "nawasara/vault": "*",

@@ -5,7 +5,7 @@ namespace Nawasara\Zoom\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Nawasara\Registry\Models\Pic;
+use Nawasara\Keycloak\Support\KeycloakProfile;
 use Nawasara\Sync\Concerns\HasSyncStatus;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -23,7 +23,7 @@ class ZoomMeeting extends Model
     protected $fillable = [
         'meeting_id',
         'host_id', // zoom user_id (FK to ZoomUser)
-        'pic_id', // optional FK to nawasara_registry_pic
+        'pj_user_id', // optional penanggung jawab — FK to users
         'topic',
         'start_time',
         'duration',
@@ -71,7 +71,7 @@ class ZoomMeeting extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'host_id',
-                'pic_id',
+                'pj_user_id',
                 'topic',
                 'start_time',
                 'duration',
@@ -90,11 +90,22 @@ class ZoomMeeting extends Model
     }
 
     /**
-     * Optional person in charge, from the registry package.
+     * Optional penanggung jawab — a real Laravel User (sourced from Keycloak).
+     * Replaces the old manual registry PIC reference.
      */
-    public function pic(): BelongsTo
+    public function penanggungJawab(): BelongsTo
     {
-        return $this->belongsTo(Pic::class, 'pic_id');
+        return $this->belongsTo(config('auth.providers.users.model'), 'pj_user_id');
+    }
+
+    /**
+     * Contact profile (name / NIP / WhatsApp / email) for the penanggung jawab,
+     * resolved from the Keycloak snapshot. Returns a "not found" profile when
+     * no PJ is set.
+     */
+    public function pjProfile(): KeycloakProfile
+    {
+        return KeycloakProfile::for($this->penanggungJawab);
     }
 
     public function recordings(): HasMany
