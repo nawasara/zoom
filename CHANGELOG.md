@@ -5,6 +5,15 @@ All notable changes to `nawasara/zoom` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] - 2026-07-14
+
+### Fixed
+- **"+ Tambah PJ" now searches the Keycloak directory** instead of the Nawasara
+  users table, so any Keycloak person can be set as penanggung jawab even if
+  they have never logged into Nawasara. On select, a local user is provisioned
+  from the Keycloak snapshot (name, username, email, `auth_type=sso`) before the
+  OPD membership is created and the PJ selected.
+
 ## [0.1.12] - 2026-07-14
 
 ### Added

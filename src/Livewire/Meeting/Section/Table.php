@@ -2,6 +2,7 @@
 
 namespace Nawasara\Zoom\Livewire\Meeting\Section;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
@@ -336,11 +337,14 @@ class Table extends Component
     }
 
     /**
-     * Search Keycloak users who are NOT yet a member of any OPD, so an operator
-     * can add one as this OPD's PJ. Matched to a Laravel user via username/email
-     * (the join key used everywhere). Returns up to 15 candidates.
+     * Search the Keycloak directory (snapshot) for people to set as PJ. This
+     * searches Keycloak itself, NOT the Nawasara users table — so a person who
+     * has never logged into Nawasara still shows up. On select they are
+     * provisioned as a local user (see addPjToOpd). Keycloak users who already
+     * map to a Nawasara user that is a member of some OPD are excluded, to keep
+     * one-user-one-OPD. Keyed by Keycloak username. Returns up to 15 candidates.
      *
-     * @return array<int, array{user_id:int, name:string, nip:?string}>
+     * @return array<int, array{kc_username:string, name:string, nip:?string, email:?string}>
      */
     public function unassignedUserResults(): array
     {
@@ -350,36 +354,49 @@ class Table extends Component
         }
 
         $userModel = config('auth.providers.users.model');
-        $assignedUserIds = Membership::pluck('user_id')->all();
 
-        // Find matching KC snapshots, then resolve to Laravel users not already
-        // in an OPD.
-        $kcMatches = KeycloakUser::query()
+        // Usernames/emails of Nawasara users already assigned to an OPD — used
+        // to hide Keycloak people who are effectively already in a dinas.
+        $assignedUserIds = Membership::pluck('user_id');
+        $assignedUsers   = $userModel::whereIn('id', $assignedUserIds)->get(['username', 'email']);
+        $assignedUsernames = $assignedUsers->pluck('username')->filter()->map(fn ($u) => mb_strtolower($u))->all();
+        $assignedEmails    = $assignedUsers->pluck('email')->filter()->map(fn ($e) => mb_strtolower($e))->all();
+
+        return KeycloakUser::query()
             ->search($term)
+            ->where('enabled', true)
             ->limit(40)
-            ->get(['username', 'email']);
-
-        $usernames = $kcMatches->pluck('username')->filter()->all();
-        $emails    = $kcMatches->pluck('email')->filter()->all();
-
-        return $userModel::query()
-            ->whereNotIn('id', $assignedUserIds)
-            ->where(fn ($q) => $q->whereIn('username', $usernames)->orWhereIn('email', $emails))
-            ->limit(15)
             ->get()
-            ->map(function ($u) {
-                $p = KeycloakProfile::for($u);
-                return ['user_id' => $u->id, 'name' => $p->name, 'nip' => $p->nip];
+            ->reject(function ($kc) use ($assignedUsernames, $assignedEmails) {
+                $u = mb_strtolower((string) $kc->username);
+                $e = mb_strtolower((string) $kc->email);
+
+                return ($u !== '' && in_array($u, $assignedUsernames, true))
+                    || ($e !== '' && in_array($e, $assignedEmails, true));
             })
+            ->take(15)
+            ->map(fn ($kc) => [
+                'kc_username' => $kc->username,
+                'name'        => $kc->full_name ?: ($kc->username ?? '—'),
+                'nip'         => $kc->nip,
+                'email'       => $kc->email,
+            ])
+            ->values()
             ->all();
     }
 
     /**
-     * Add a Keycloak user as an active member of the selected OPD, then select
-     * them as PJ. Guarded: the user must not already belong to an OPD (one user
-     * = one OPD), and an OPD must be chosen first.
+     * Set a Keycloak person as this OPD's PJ. The person need NOT be an existing
+     * Nawasara user: if there is no local user row for them yet, one is
+     * provisioned from the Keycloak snapshot (same shape as SSO auto-provision).
+     * They are then added as an active member of the selected OPD and selected
+     * as PJ. Guarded by permission; enforces one-user-one-OPD.
+     *
+     * Takes the row index into the current search results (resolved server-side
+     * to the Keycloak username) rather than passing the username through the DOM
+     * — see CLAUDE.md 13.f.
      */
-    public function addPjToOpd(int $userId): void
+    public function addPjToOpd(int $index): void
     {
         Gate::authorize('registry.membership.manage');
 
@@ -388,19 +405,54 @@ class Table extends Component
             return;
         }
 
+        $kcUsername = $this->unassignedUserResults()[$index]['kc_username'] ?? null;
+        if (! $kcUsername) {
+            $this->alert('error', 'Pilihan tidak valid, coba cari ulang.');
+            return;
+        }
+
+        $kc = KeycloakUser::where('username', $kcUsername)->first();
+        if (! $kc) {
+            $this->alert('error', 'User Keycloak tidak ditemukan.');
+            return;
+        }
+
+        $userModel = config('auth.providers.users.model');
+
+        $user = DB::transaction(function () use ($kc, $userModel) {
+            // Find an existing local user by username, else email.
+            $user = $userModel::where('username', $kc->username)->first()
+                ?? ($kc->email ? $userModel::where('email', $kc->email)->first() : null);
+
+            // Provision from the Keycloak snapshot if they have never been a
+            // Nawasara user. Mirrors SsoController auto-provision (dummy password
+            // to satisfy NOT NULL; login always happens via SSO).
+            if (! $user) {
+                $user = $userModel::create([
+                    'name'      => $kc->full_name ?: ($kc->username ?? 'SSO User'),
+                    'username'  => $kc->username,
+                    'email'     => $kc->email ?: ($kc->username.'@sso.local'),
+                    'password'  => bcrypt(\Illuminate\Support\Str::random(40)),
+                    'auth_type' => 'sso',
+                ]);
+            }
+
+            return $user;
+        });
+
         // Fail-safe: never create a second membership for a user.
-        if (Membership::where('user_id', $userId)->exists()) {
+        if (Membership::where('user_id', $user->id)->exists()) {
             $this->alert('error', 'User sudah terdaftar di OPD lain.');
             return;
         }
 
         Membership::create([
-            'user_id' => $userId,
+            'user_id' => $user->id,
             'opd_id'  => $this->formOpdId,
             'aktif'   => true,
         ]);
 
-        $this->formPjUserId = $userId;
+        $this->formPjUserId = $user->id;
         $this->pjSearch = '';
         $this->dispatch('close-modal', 'zoom-add-pj');
         $this->alert('success', 'Penanggung jawab ditambahkan ke OPD & dipilih.');
