@@ -5,6 +5,17 @@ All notable changes to `nawasara/zoom` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] - 2026-07-14
+
+### Fixed
+- **Fatal 500 when creating/updating/deleting a meeting.** `AbstractZoomMeetingJob`
+  redeclared `public $queue`, which the `Queueable` trait already defines with a
+  different default — PHP rejects the incompatible property composition with a
+  fatal error, so the job class could not load and the request 500'd (the DB row
+  was still created before dispatch, which is why the meeting appeared anyway).
+  The queue is now set at dispatch via `->onQueue(...PRIORITY_QUEUE)` instead of
+  a conflicting property; priority routing is unchanged.
+
 ## [0.1.13] - 2026-07-14
 
 ### Fixed

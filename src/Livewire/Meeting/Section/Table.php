@@ -15,6 +15,7 @@ use Nawasara\Registry\Models\Opd;
 use Nawasara\Toaster\Concerns\HasToaster;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
 use Nawasara\Ui\Livewire\Concerns\HasTimeWindow;
+use Nawasara\Zoom\Jobs\Meetings\AbstractZoomMeetingJob;
 use Nawasara\Zoom\Jobs\Meetings\CreateZoomMeetingJob;
 use Nawasara\Zoom\Jobs\Meetings\DeleteZoomMeetingJob;
 use Nawasara\Zoom\Jobs\Meetings\UpdateZoomMeetingJob;
@@ -206,7 +207,8 @@ class Table extends Component
                 'timezone'   => $tz,
                 'duration'   => $this->formDuration,
             ]);
-            UpdateZoomMeetingJob::dispatch($meeting->meeting_id, $data);
+            UpdateZoomMeetingJob::dispatch($meeting->meeting_id, $data)
+                ->onQueue(AbstractZoomMeetingJob::PRIORITY_QUEUE);
             $this->alert('success', 'Perubahan meeting disimpan — sinkronisasi ke Zoom berjalan di latar belakang.');
         } else {
             // Local placeholder row — meeting_id is null until the Zoom API
@@ -221,7 +223,8 @@ class Table extends Component
                 'sync_status' => 'pending',
             ]);
 
-            CreateZoomMeetingJob::dispatch($meeting->id, $this->formHostId, $data);
+            CreateZoomMeetingJob::dispatch($meeting->id, $this->formHostId, $data)
+                ->onQueue(AbstractZoomMeetingJob::PRIORITY_QUEUE);
             $this->alert('success', 'Meeting dibuat — sinkronisasi ke Zoom berjalan di latar belakang.');
         }
 
@@ -264,7 +267,8 @@ class Table extends Component
         $meeting->delete();
 
         if ($meetingId) {
-            DeleteZoomMeetingJob::dispatch($meetingId);
+            DeleteZoomMeetingJob::dispatch($meetingId)
+                ->onQueue(AbstractZoomMeetingJob::PRIORITY_QUEUE);
         }
 
         $this->dispatch('close-modal', id: 'modalConfirmDelete');
