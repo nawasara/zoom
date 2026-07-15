@@ -5,6 +5,16 @@ All notable changes to `nawasara/zoom` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] - 2026-07-15
+
+### Fixed
+- **Meeting time landed at creation time on Zoom instead of the scheduled time.**
+  The picker emits `start_time` without seconds (`2026-07-20T14:30`); the Zoom
+  API silently rejects that format and falls back to "now", so a scheduled
+  meeting was created at the moment of creation. Send `start_time` with seconds
+  (`2026-07-20T14:30:00`) in the meeting timezone. Verified end-to-end against
+  the Zoom API (fetched back: correct WIB wall-clock).
+
 ## [0.1.14] - 2026-07-14
 
 ### Fixed

@@ -175,11 +175,22 @@ class Table extends Component
         // treats it as GMT and the meeting shifts (and could roll back a day).
         $tz = config('nawasara-zoom.timezone', 'Asia/Jakarta');
 
+        // Interpret the wall-clock picker value (Y-m-d\TH:i, no seconds) in the
+        // meeting timezone. Keep both a local-tz copy (for the Zoom payload) and
+        // a UTC copy (for the DB, which stores absolute instants).
+        $startLocal = \Carbon\Carbon::createFromFormat('Y-m-d\TH:i', $this->formStartTime, $tz);
+        $startAt = $startLocal->copy()->utc();
+
         // Zoom API payload — pj_user_id is local-only, not sent to Zoom.
+        // start_time MUST include seconds (yyyy-MM-ddTHH:mm:ss). The picker emits
+        // it WITHOUT seconds ("2026-07-20T14:30"); Zoom silently rejects that
+        // format and falls back to "now" — the meeting then lands at creation
+        // time instead of the scheduled time (the reported bug). Send the local
+        // wall-clock WITH seconds alongside timezone=Asia/Jakarta.
         $data = [
             'topic' => $this->formTopic,
             'type' => 2, // scheduled meeting
-            'start_time' => $this->formStartTime,
+            'start_time' => $startLocal->format('Y-m-d\TH:i:s'),
             'timezone' => $tz,
             'duration' => $this->formDuration,
             'password' => $this->formPassword,
@@ -191,12 +202,6 @@ class Table extends Component
                 ],
             ],
         ];
-
-        // Interpret the wall-clock picker value in the meeting timezone, then
-        // convert to UTC so the stored instant is correct (app + DB are UTC;
-        // the datetime cast persists the value as-is without converting).
-        $startAt = \Carbon\Carbon::createFromFormat('Y-m-d\TH:i', $this->formStartTime, $tz)
-            ->utc();
 
         if ($this->editingId) {
             $meeting = ZoomMeeting::findOrFail($this->editingId);
