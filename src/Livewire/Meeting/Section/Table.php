@@ -463,7 +463,7 @@ class Table extends Component
 
         $this->formPjUserId = $user->id;
         $this->pjSearch = '';
-        $this->dispatch('close-modal', 'zoom-add-pj');
+        $this->dispatch('modal-close:zoom-add-pj');
         $this->alert('success', 'Penanggung jawab ditambahkan ke OPD & dipilih.');
     }
 
