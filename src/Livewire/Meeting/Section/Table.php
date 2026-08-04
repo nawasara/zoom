@@ -8,7 +8,7 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Nawasara\Keycloak\Models\KeycloakUser;
+use Nawasara\Keycloak\Concerns\SearchesKeycloakDirectory;
 use Nawasara\Keycloak\Support\KeycloakProfile;
 use Nawasara\Registry\Models\Membership;
 use Nawasara\Registry\Models\Opd;
@@ -34,6 +34,9 @@ class Table extends Component
     // that we use below to translate the active preset into bounds for the
     // repository's existing dateRange filter.
     use HasTimeWindow;
+    // Pencarian direktori Keycloak + akses ke KeycloakUserProvisioner, dipakai
+    // saat menambahkan PJ yang belum pernah jadi user Nawasara.
+    use SearchesKeycloakDirectory;
 
     #[Url]
     public string $search = '';
@@ -351,47 +354,34 @@ class Table extends Component
      * has never logged into Nawasara still shows up. On select they are
      * provisioned as a local user (see addPjToOpd). Keycloak users who already
      * map to a Nawasara user that is a member of some OPD are excluded, to keep
-     * one-user-one-OPD. Keyed by Keycloak username. Returns up to 15 candidates.
+     * one-user-one-OPD. Returns up to 15 candidates.
      *
-     * @return array<int, array{kc_username:string, name:string, nip:?string, email:?string}>
+     * @return array<int, array{kc_id:string, kc_username:?string, name:string, nip:?string, email:?string, is_local:bool}>
      */
     public function unassignedUserResults(): array
     {
-        $term = trim($this->pjSearch);
-        if (mb_strlen($term) < 2) {
-            return [];
-        }
+        [$usernames, $emails] = $this->assignedIdentities();
 
+        return $this->keycloakSearchResults($this->pjSearch, $usernames, $emails);
+    }
+
+    /**
+     * Usernames/emails of Nawasara users already assigned to an OPD — used to
+     * hide Keycloak people who are effectively already in a dinas.
+     *
+     * @return array{0: array<int,string>, 1: array<int,string>}
+     */
+    protected function assignedIdentities(): array
+    {
         $userModel = config('auth.providers.users.model');
 
-        // Usernames/emails of Nawasara users already assigned to an OPD — used
-        // to hide Keycloak people who are effectively already in a dinas.
-        $assignedUserIds = Membership::pluck('user_id');
-        $assignedUsers   = $userModel::whereIn('id', $assignedUserIds)->get(['username', 'email']);
-        $assignedUsernames = $assignedUsers->pluck('username')->filter()->map(fn ($u) => mb_strtolower($u))->all();
-        $assignedEmails    = $assignedUsers->pluck('email')->filter()->map(fn ($e) => mb_strtolower($e))->all();
+        $assigned = $userModel::whereIn('id', Membership::pluck('user_id'))
+            ->get(['username', 'email']);
 
-        return KeycloakUser::query()
-            ->search($term)
-            ->where('enabled', true)
-            ->limit(40)
-            ->get()
-            ->reject(function ($kc) use ($assignedUsernames, $assignedEmails) {
-                $u = mb_strtolower((string) $kc->username);
-                $e = mb_strtolower((string) $kc->email);
-
-                return ($u !== '' && in_array($u, $assignedUsernames, true))
-                    || ($e !== '' && in_array($e, $assignedEmails, true));
-            })
-            ->take(15)
-            ->map(fn ($kc) => [
-                'kc_username' => $kc->username,
-                'name'        => $kc->full_name ?: ($kc->username ?? '—'),
-                'nip'         => $kc->nip,
-                'email'       => $kc->email,
-            ])
-            ->values()
-            ->all();
+        return [
+            $assigned->pluck('username')->filter()->map(fn ($u) => mb_strtolower($u))->all(),
+            $assigned->pluck('email')->filter()->map(fn ($e) => mb_strtolower($e))->all(),
+        ];
     }
 
     /**
@@ -414,40 +404,18 @@ class Table extends Component
             return;
         }
 
-        $kcUsername = $this->unassignedUserResults()[$index]['kc_username'] ?? null;
-        if (! $kcUsername) {
+        [$usernames, $emails] = $this->assignedIdentities();
+
+        $kc = $this->keycloakUserAt($index, $this->pjSearch, $usernames, $emails);
+        if (! $kc) {
             $this->alert('error', 'Pilihan tidak valid, coba cari ulang.');
             return;
         }
 
-        $kc = KeycloakUser::where('username', $kcUsername)->first();
-        if (! $kc) {
-            $this->alert('error', 'User Keycloak tidak ditemukan.');
-            return;
-        }
-
-        $userModel = config('auth.providers.users.model');
-
-        $user = DB::transaction(function () use ($kc, $userModel) {
-            // Find an existing local user by username, else email.
-            $user = $userModel::where('username', $kc->username)->first()
-                ?? ($kc->email ? $userModel::where('email', $kc->email)->first() : null);
-
-            // Provision from the Keycloak snapshot if they have never been a
-            // Nawasara user. Mirrors SsoController auto-provision (dummy password
-            // to satisfy NOT NULL; login always happens via SSO).
-            if (! $user) {
-                $user = $userModel::create([
-                    'name'      => $kc->full_name ?: ($kc->username ?? 'SSO User'),
-                    'username'  => $kc->username,
-                    'email'     => $kc->email ?: ($kc->username.'@sso.local'),
-                    'password'  => bcrypt(\Illuminate\Support\Str::random(40)),
-                    'auth_type' => 'sso',
-                ]);
-            }
-
-            return $user;
-        });
+        // Provisioning (termasuk pemberian role default) dipusatkan di
+        // KeycloakUserProvisioner — versi lokal yang dulu ada di sini lupa
+        // memberi role, jadi user hasil provisioning tidak bisa apa-apa.
+        $user = $this->provisioner()->fromSnapshot($kc);
 
         // Fail-safe: never create a second membership for a user.
         if (Membership::where('user_id', $user->id)->exists()) {

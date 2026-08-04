@@ -451,7 +451,7 @@
                 @php $pjResults = $this->unassignedUserResults(); @endphp
                 @forelse ($pjResults as $idx => $u)
                     <button type="button"
-                        wire:key="unassigned-{{ $u['kc_username'] }}"
+                        wire:key="unassigned-{{ $u['kc_id'] }}"
                         wire:click="addPjToOpd({{ $idx }})"
                         class="flex w-full items-center justify-between gap-3 border-b border-neutral-100 px-3 py-2.5 text-left last:border-0 hover:bg-emerald-50 dark:border-neutral-800 dark:hover:bg-emerald-900/20">
                         <span class="min-w-0">
