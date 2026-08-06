@@ -243,7 +243,42 @@ class Table extends Component
 | `nawasara_zoom_meetings`   | Meeting snapshot   |
 | `nawasara_zoom_recordings` | Recording snapshot |
 
-## API Rate Limits
+## API Nawasara (untuk aplikasi lain)
+
+Butuh [`nawasara/api`](../nawasara-api). Kalau paket itu tidak terpasang, route tidak di-mount.
+
+Dilayani dari snapshot lokal, bukan Zoom API langsung — kuota rate limit Zoom tidak habis dipakai konsumen, dan gangguan di sisi Zoom tidak merambat ke aplikasi yang menampilkan agenda.
+
+### Scope
+
+| Scope | Akses |
+|---|---|
+| `zoom.meeting.read` | Jadwal rapat: topik, waktu, durasi, status, host, penanggung jawab |
+| `zoom.meeting.join` | **Tambahan** atas yang di atas: membuka `join_url` + `password` |
+| `zoom.recording.read` | Daftar rekaman (metadata saja) |
+
+`join.` dipisah dari `read` dengan sengaja: aplikasi yang menampilkan agenda tidak perlu ikut memegang kunci masuk rapat. Token dengan scope join bisa dipakai masuk ke rapat mana pun, jadi berikan hanya kepada yang memang menampilkan tombol gabung.
+
+### Endpoint
+
+| Method | Path | Query |
+|---|---|---|
+| GET | `/api/v1/zoom/meetings` | `q`, `host_id`, `window` (`upcoming` default \| `past` \| `all`), `from`+`to`, `per_page` |
+| GET | `/api/v1/zoom/meetings/{meetingId}` | |
+| GET | `/api/v1/zoom/recordings` | `meeting_id`, `per_page` |
+
+```bash
+curl -H "Authorization: Bearer nws_xxx" \
+  "https://nawasara.ponorogo.go.id/api/v1/zoom/meetings?window=upcoming&per_page=10"
+```
+
+### Yang tidak pernah dikembalikan
+
+- **`start_url`** — dalam keadaan apa pun, termasuk dengan scope join. Tautan itu memulai rapat **sebagai host**, jadi ia bukan akses masuk melainkan kendali penuh atas rapat orang lain.
+- **`download_url`, `play_url`, `file_url`** — tautan langsung ke isi rekaman. Sekali keluar lewat token, rekaman rapat internal bisa diunduh siapa pun yang memegangnya. Yang perlu menonton diarahkan lewat Nawasara, di mana aksesnya tercatat.
+- **`join_url`, `password`** — kecuali token membawa `zoom.meeting.join`.
+
+## API Rate Limits (Zoom)
 
 Zoom API rate limits: 30 req/sec (Light), 60 req/sec (Medium)
 

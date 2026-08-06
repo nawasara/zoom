@@ -24,12 +24,69 @@ class ZoomServiceProvider extends ServiceProvider
         $this->registerLivewire();
         $this->registerSchedule();
 
+        // Scope didaftarkan sebelum routes: UI token memfilter scope yang
+        // tidak ter-register, jadi lupa mendaftarkan berarti scope-nya tidak
+        // bisa diberikan ke token mana pun — diam-diam.
+        $this->registerApiScopes();
+        $this->registerApiRoutes();
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 HealthCheckCommand::class,
                 SyncCommand::class,
             ]);
         }
+    }
+
+    /**
+     * Daftarkan scope API ke registry terpusat `nawasara/api`.
+     *
+     * Guard class_exists, bukan dependency composer — package ini tetap jalan
+     * penuh tanpa nawasara/api terpasang; API-nya saja yang absen.
+     */
+    public function registerApiScopes(): void
+    {
+        if (! class_exists(\Nawasara\Api\Support\ScopeRegistry::class)) {
+            return;
+        }
+
+        $registry = $this->app->make(\Nawasara\Api\Support\ScopeRegistry::class);
+
+        $registry->register(
+            'zoom.meeting.read',
+            'Jadwal rapat: topik, agenda, waktu mulai, durasi, status, host, dan penanggung jawab. '
+            .'Tautan masuk dan password TIDAK termasuk — itu scope terpisah. Read-only.',
+        );
+
+        $registry->register(
+            'zoom.meeting.join',
+            'Tambahan atas zoom.meeting.read: membuka join_url dan password rapat. '
+            .'Beri hanya ke aplikasi yang memang perlu menampilkan tombol gabung — '
+            .'token dengan scope ini bisa dipakai masuk ke rapat mana pun.',
+        );
+
+        $registry->register(
+            'zoom.recording.read',
+            'Daftar rekaman rapat: topik, waktu, durasi, jenis berkas, masa simpan. '
+            .'Tautan unduh dan putar TIDAK termasuk. Read-only.',
+        );
+    }
+
+    /**
+     * Mount routes/api.php di prefix /api/v1/zoom.
+     */
+    public function registerApiRoutes(): void
+    {
+        if (! class_exists(\Nawasara\Api\ApiServiceProvider::class)) {
+            return;
+        }
+
+        $prefix = (string) config('nawasara-api.route.prefix', 'api/v1').'/zoom';
+
+        \Illuminate\Support\Facades\Route::prefix($prefix)
+            ->middleware(['api', 'api.auth', 'api.log'])
+            ->name('nawasara-api.zoom.')
+            ->group(__DIR__.'/../routes/api.php');
     }
 
     /**
