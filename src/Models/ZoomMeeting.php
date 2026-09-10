@@ -81,6 +81,24 @@ class ZoomMeeting extends Model
                 'waiting_room',
             ])
             ->logOnlyDirty()
+
+            // ⚠️ `logOnlyDirty()` SAJA TIDAK MENAHAN BARIS KOSONG.
+            //
+            // Ia menyaring kolom mana yang ikut dicatat, bukan apakah barisnya
+            // ditulis. Sinkronisasi menyentuh setiap rapat setiap lima menit —
+            // memperbarui last_synced_at dan kawan-kawannya, yang semuanya di
+            // luar logOnly() — sehingga model tetap "tersimpan" meski tidak ada
+            // satu pun kolom terpantau yang berubah. Hasilnya baris
+            // `{"old": [], "attributes": []}`: entri audit yang tidak
+            // menjelaskan apa pun.
+            //
+            // 88,4% dari 10.000 entri Zoom terakhir berbentuk seperti itu
+            // (diperiksa 10 September 2026). Bersama bug agenda di
+            // SyncZoomMeetingsJob, ia membuat log audit 99,7% Zoom — jejak
+            // perubahan peran, kredensial, dan kamera menjadi mustahil dilihat
+            // tanpa menyaring.
+            ->dontSubmitEmptyLogs()
+
             ->setDescriptionForEvent(fn (string $eventName) => "Zoom meeting {$eventName}");
     }
 

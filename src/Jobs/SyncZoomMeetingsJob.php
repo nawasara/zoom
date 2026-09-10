@@ -131,6 +131,31 @@ class SyncZoomMeetingsJob extends AbstractSyncJob
      * Upsert one meeting. Handles both the /meetings shape and the Reports
      * shape (which uses slightly different keys: 'duration' in minutes,
      * 'start_time', 'end_time', no 'settings').
+     *
+     * ⚠️ TIDAK SEMUA SUMBER MENGIRIM SEMUA KOLOM, dan kolom yang tidak dikirim
+     * BUKAN berarti kosong.
+     *
+     * Satu siklus sync memanggil tiga daftar berbeda untuk user yang sama —
+     * `scheduled`, `upcoming`, `previous_meetings` — lalu Reports API bila
+     * histori diminta. Zoom mengembalikan bentuk yang berbeda untuk
+     * masing-masing: `scheduled` memuat `agenda`, `previous_meetings` dan
+     * Reports tidak.
+     *
+     * Dulu semuanya ditulis dengan `?? null`, sehingga rapat yang sama
+     * ditimpa tiga kali per siklus dan daftar yang tidak memuat agenda
+     * MENGHAPUS agenda yang baru saja diisi daftar sebelumnya. Isi lalu
+     * kembali pada siklus berikutnya, dan begitu seterusnya setiap lima menit.
+     *
+     * Akibatnya dua-duanya buruk: agenda rapat hilang dari basis data (35 dari
+     * 35 baris kosong saat ini ditemukan, 10 September 2026), dan setiap
+     * pembalikan tercatat sebagai dua entri di activity log — 243.412 dari
+     * 244.254 baris, 99,7% isi seluruh jejak audit, menenggelamkan aktivitas
+     * yang benar-benar dilakukan orang.
+     *
+     * Karena itu kolom yang bergantung pada bentuk sumber hanya ditulis bila
+     * kuncinya BENAR-BENAR ADA di respons — `array_key_exists`, bukan `??`,
+     * karena `null` yang dikirim Zoom secara sengaja berbeda artinya dari
+     * kunci yang memang tidak disertakan.
      */
     protected function syncMeeting(array $remote): void
     {
@@ -138,27 +163,37 @@ class SyncZoomMeetingsJob extends AbstractSyncJob
             return;
         }
 
-        ZoomMeeting::updateOrCreate(
-            ['meeting_id' => $remote['id']],
-            [
-                'host_id' => $remote['host_id'] ?? null,
-                'topic' => $remote['topic'] ?? '(tanpa judul)',
-                'start_time' => $remote['start_time'] ?? null,
-                'duration' => $remote['duration'] ?? 0,
-                'timezone' => $remote['timezone'] ?? null,
-                'password' => $remote['password'] ?? null,
-                'agenda' => $remote['agenda'] ?? null,
-                'status' => $remote['status'] ?? 'ended',
-                'type' => $remote['type'] ?? 2,
-                'join_url' => $remote['join_url'] ?? null,
-                'auto_recording' => $remote['settings']['auto_recording'] ?? 'none',
-                'waiting_room' => $remote['settings']['waiting_room_settings']['is_waiting_room_enabled'] ?? false,
-                'zoom_created_at' => $remote['created_at'] ?? ($remote['start_time'] ?? null),
-                'zoom_updated_at' => $remote['updated_at'] ?? null,
-                'sync_status' => 'synced',
-                'sync_error' => null,
-                'last_synced_at' => now(),
-            ]
-        );
+        // Kolom yang selalu dikirim setiap sumber — aman ditulis apa adanya.
+        $nilai = [
+            'host_id' => $remote['host_id'] ?? null,
+            'topic' => $remote['topic'] ?? '(tanpa judul)',
+            'start_time' => $remote['start_time'] ?? null,
+            'duration' => $remote['duration'] ?? 0,
+            'status' => $remote['status'] ?? 'ended',
+            'type' => $remote['type'] ?? 2,
+            'zoom_created_at' => $remote['created_at'] ?? ($remote['start_time'] ?? null),
+            'zoom_updated_at' => $remote['updated_at'] ?? null,
+            'sync_status' => 'synced',
+            'sync_error' => null,
+            'last_synced_at' => now(),
+        ];
+
+        // Kolom yang hanya sebagian sumber kirim. Tanpa penjagaan ini, daftar
+        // yang lebih miskin akan menghapus data dari daftar yang lebih kaya.
+        foreach (['timezone', 'password', 'agenda', 'join_url'] as $kolom) {
+            if (array_key_exists($kolom, $remote)) {
+                $nilai[$kolom] = $remote[$kolom];
+            }
+        }
+
+        // `settings` hanya ada di /meetings, tidak pernah di Reports. Tanpa
+        // penjagaan, setiap lintasan Reports mengembalikan auto_recording ke
+        // 'none' dan mematikan waiting_room di basis data.
+        if (array_key_exists('settings', $remote)) {
+            $nilai['auto_recording'] = $remote['settings']['auto_recording'] ?? 'none';
+            $nilai['waiting_room'] = $remote['settings']['waiting_room_settings']['is_waiting_room_enabled'] ?? false;
+        }
+
+        ZoomMeeting::updateOrCreate(['meeting_id' => $remote['id']], $nilai);
     }
 }
