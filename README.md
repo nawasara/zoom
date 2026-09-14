@@ -1,60 +1,60 @@
 # Nawasara Zoom Package
 
-Zoom meeting management dashboard untuk Nawasara — user management, meeting CRUD, recording management, dan webhook integration dengan DB-cached snapshots dan queue-backed mutations.
+A Zoom meeting management dashboard for Nawasara: user management, meeting CRUD, recording management, and webhook integration, backed by DB-cached snapshots and queue-backed mutations.
 
-Menggunakan komponen UI dari **nawasara-ui** dan mengikuti pola package architecture seperti `nawasara-cloudflare` dan `nawasara-whm`.
+It uses the UI components from **nawasara-ui** and follows the package architecture pattern of `nawasara-cloudflare` and `nawasara-whm`.
 
-## Fitur
+## Features
 
-### ✅ P1 — User Management (Read-only Mirror)
+### P1: User Management (read-only mirror), ready
 
-- List semua user di account Zoom Kominfo
-- Detail user dengan license type, department, last login, total meetings
-- Filter by license type dan status
+- List all users in the Kominfo Zoom account
+- User detail with license type, department, last login, and total meetings
+- Filter by license type and status
 - License usage tracking
-- Responsive table dengan pagination
+- Responsive table with pagination
 
-### ✅ P1 — Meeting Management (CRUD)
+### P1: Meeting Management (CRUD), ready
 
-- List meeting (scheduled + past) dengan filter
+- List meetings (scheduled and past) with filters
 - Search by topic
-- Create meeting — topic, start time, duration, host, password, waiting room, recording auto
-- Update dan delete meeting
-- Get join link (copyable URL + password)
-- Support recurring meeting (P2)
+- Create a meeting: topic, start time, duration, host, password, waiting room, auto recording
+- Update and delete a meeting
+- Get the join link (copyable URL plus password)
+- Recurring meeting support (P2)
 
-### 🟡 P2 — Recording Management
+### P2: Recording Management, partial
 
-- List recording per meeting/host
+- List recordings per meeting or host
 - Download link (cloud recording)
-- Delete recording dengan retention policy
+- Delete a recording with a retention policy
 - Storage size tracking
 
-### 🟡 P2 — Webhook Integration
+### P2: Webhook Integration, partial
 
 - Real-time event handling (meeting started/ended, recording ready)
 - Signature verification (HMAC SHA-256)
 
 ## UI Components (nawasara-ui)
 
-Package menggunakan komponen-komponen dari `nawasara-ui`:
+The package uses these components from `nawasara-ui`:
 
-- `x-nawasara-ui::page.container` — Page wrapper
-- `x-nawasara-ui::page.title` — Page title
-- `x-nawasara-ui::page.actions` — Action buttons area
-- `x-nawasara-ui::button` — Custom button dengan color/size variants
-- `x-nawasara-ui::filter-bar` — Search + filter UI
-- `x-nawasara-ui::filter-dropdown` — Filter dropdown
-- `x-nawasara-ui::filter-chip` — Active filter chip
-- `x-nawasara-ui::table` — Data table dengan headers
-- `x-nawasara-ui::form.label` — Form label
-- `x-lucide-*` — Icon components dari Lucide
+- `x-nawasara-ui::page.container`: page wrapper
+- `x-nawasara-ui::page.title`: page title
+- `x-nawasara-ui::page.actions`: action button area
+- `x-nawasara-ui::button`: custom button with color and size variants
+- `x-nawasara-ui::filter-bar`: search and filter UI
+- `x-nawasara-ui::filter-dropdown`: filter dropdown
+- `x-nawasara-ui::filter-chip`: active filter chip
+- `x-nawasara-ui::table`: data table with headers
+- `x-nawasara-ui::form.label`: form label
+- `x-lucide-*`: icon components from Lucide
 
 ## Setup
 
 ### 1. Vault Configuration
 
-Tambah credential Zoom ke Vault:
+Add the Zoom credentials to Vault:
 
 ```php
 'zoom' => [
@@ -64,17 +64,17 @@ Tambah credential Zoom ke Vault:
 ],
 ```
 
-### 2. Create Server-to-Server OAuth App
+### 2. Create a Server-to-Server OAuth App
 
-1. Login ke [Zoom Marketplace](https://marketplace.zoom.us)
-2. Create aplikasi baru dengan type **Server-to-Server OAuth**
-3. Set scopes:
+1. Log in to the [Zoom Marketplace](https://marketplace.zoom.us)
+2. Create a new app of type **Server-to-Server OAuth**
+3. Set the scopes:
     - `user:read:admin`
     - `meeting:read:admin`, `meeting:write:admin`
     - `recording:read:admin`, `recording:write:admin`
-4. Copy Account ID, Client ID, Client Secret ke Vault
+4. Copy the Account ID, Client ID, and Client Secret into Vault
 
-### 3. Run Migration
+### 3. Run the Migration
 
 ```bash
 php artisan migrate
@@ -86,13 +86,13 @@ php artisan migrate
 php artisan db:seed --class="Nawasara\\Zoom\\Database\\Seeders\\PermissionSeeder"
 ```
 
-### 5. Test Connection
+### 5. Test the Connection
 
 ```bash
 php artisan zoom:health-check
 ```
 
-## Penggunaan
+## Usage
 
 ### Sync Jobs
 
@@ -107,9 +107,9 @@ php artisan zoom:sync recordings # Sync recordings only
 
 **Scheduled (automatic):**
 
-- Users: setiap 1 jam
-- Meetings: setiap 5 menit
-- Recordings: setiap 30 menit
+- Users: every 1 hour
+- Meetings: every 5 minutes
+- Recordings: every 30 minutes
 
 ### Permissions
 
@@ -126,9 +126,9 @@ zoom.recording.delete
 zoom.sync.execute
 ```
 
-### Livewire Components Structure
+### Livewire Component Structure
 
-Components mengikuti pola yang konsisten dengan packages lain:
+The components follow the same pattern as the other packages:
 
 ```
 src/Livewire/
@@ -172,7 +172,7 @@ resources/views/livewire/pages/
 
 ### Key Livewire Pattern
 
-**Index Component (Page Level):**
+**Index Component (page level):**
 
 ```php
 class Index extends Component
@@ -185,7 +185,7 @@ class Index extends Component
 }
 ```
 
-**Section Component (Table/Form):**
+**Section Component (table/form):**
 
 ```php
 class Table extends Component
@@ -209,31 +209,31 @@ class Table extends Component
 
 ### Models
 
-- `ZoomUser` — snapshot user Zoom
-- `ZoomMeeting` — snapshot meeting
-- `ZoomRecording` — snapshot recording
+- `ZoomUser`: Zoom user snapshot
+- `ZoomMeeting`: meeting snapshot
+- `ZoomRecording`: recording snapshot
 
 ### Jobs
 
-- `SyncZoomUsersJob` — hourly user sync
-- `SyncZoomMeetingsJob` — 5-minute meeting sync
-- `SyncZoomRecordingsJob` — 30-minute recording sync
-- `CreateZoomMeetingJob` — create meeting mutation
-- `UpdateZoomMeetingJob` — update meeting mutation
-- `DeleteZoomMeetingJob` — delete meeting mutation
+- `SyncZoomUsersJob`: hourly user sync
+- `SyncZoomMeetingsJob`: 5-minute meeting sync
+- `SyncZoomRecordingsJob`: 30-minute recording sync
+- `CreateZoomMeetingJob`: create meeting mutation
+- `UpdateZoomMeetingJob`: update meeting mutation
+- `DeleteZoomMeetingJob`: delete meeting mutation
 
 ### Repositories
 
-- `ZoomUserRepository` — user data access
-- `ZoomMeetingRepository` — meeting data access
-- `ZoomRecordingRepository` — recording data access
+- `ZoomUserRepository`: user data access
+- `ZoomMeetingRepository`: meeting data access
+- `ZoomRecordingRepository`: recording data access
 
 ### Livewire Components
 
-- `Users/Index` — list users
-- `Meetings/Index` — list meetings
-- `Meetings/Form` — create/edit meeting
-- `Recordings/Index` — list recordings
+- `Users/Index`: list users
+- `Meetings/Index`: list meetings
+- `Meetings/Form`: create/edit meeting
+- `Recordings/Index`: list recordings
 
 ## Database Tables
 
@@ -243,27 +243,27 @@ class Table extends Component
 | `nawasara_zoom_meetings`   | Meeting snapshot   |
 | `nawasara_zoom_recordings` | Recording snapshot |
 
-## API Nawasara (untuk aplikasi lain)
+## Nawasara API (for other applications)
 
-Butuh [`nawasara/api`](../nawasara-api). Kalau paket itu tidak terpasang, route tidak di-mount.
+Requires [`nawasara/api`](../nawasara-api). If that package is not installed, the routes are not mounted.
 
-Dilayani dari snapshot lokal, bukan Zoom API langsung — kuota rate limit Zoom tidak habis dipakai konsumen, dan gangguan di sisi Zoom tidak merambat ke aplikasi yang menampilkan agenda.
+Served from the local snapshot, not directly from the Zoom API. This keeps Zoom's rate-limit quota from being used up by consumers, and it means a Zoom-side outage does not propagate to the apps that display the agenda.
 
-### Scope
+### Scopes
 
-| Scope | Akses |
+| Scope | Access |
 |---|---|
-| `zoom.meeting.read` | Jadwal rapat: topik, waktu, durasi, status, host, penanggung jawab |
-| `zoom.meeting.join` | **Tambahan** atas yang di atas: membuka `join_url` + `password` |
-| `zoom.recording.read` | Daftar rekaman (metadata saja) |
+| `zoom.meeting.read` | Meeting schedule: topic, time, duration, status, host, person in charge |
+| `zoom.meeting.join` | **In addition** to the above: reveals `join_url` and `password` |
+| `zoom.recording.read` | Recording list (metadata only) |
 
-`join.` dipisah dari `read` dengan sengaja: aplikasi yang menampilkan agenda tidak perlu ikut memegang kunci masuk rapat. Token dengan scope join bisa dipakai masuk ke rapat mana pun, jadi berikan hanya kepada yang memang menampilkan tombol gabung.
+`join.` is deliberately separated from `read`: an app that only shows the agenda does not need to hold the keys to join a meeting. A token with the join scope can join any meeting, so grant it only to consumers that actually render a join button.
 
-### Endpoint
+### Endpoints
 
 | Method | Path | Query |
 |---|---|---|
-| GET | `/api/v1/zoom/meetings` | `q`, `host_id`, `window` (`upcoming` default \| `past` \| `all`), `from`+`to`, `per_page` |
+| GET | `/api/v1/zoom/meetings` | `q`, `host_id`, `window` (`upcoming` default, `past`, or `all`), `from`+`to`, `per_page` |
 | GET | `/api/v1/zoom/meetings/{meetingId}` | |
 | GET | `/api/v1/zoom/recordings` | `meeting_id`, `per_page` |
 
@@ -272,23 +272,23 @@ curl -H "Authorization: Bearer nws_xxx" \
   "https://nawasara.ponorogo.go.id/api/v1/zoom/meetings?window=upcoming&per_page=10"
 ```
 
-### Yang tidak pernah dikembalikan
+### What is never returned
 
-- **`start_url`** — dalam keadaan apa pun, termasuk dengan scope join. Tautan itu memulai rapat **sebagai host**, jadi ia bukan akses masuk melainkan kendali penuh atas rapat orang lain.
-- **`download_url`, `play_url`, `file_url`** — tautan langsung ke isi rekaman. Sekali keluar lewat token, rekaman rapat internal bisa diunduh siapa pun yang memegangnya. Yang perlu menonton diarahkan lewat Nawasara, di mana aksesnya tercatat.
-- **`join_url`, `password`** — kecuali token membawa `zoom.meeting.join`.
+- **`start_url`**: under no circumstances, including with the join scope. That link starts the meeting **as the host**, so it is not join access but full control over someone else's meeting.
+- **`download_url`, `play_url`, `file_url`**: direct links to the recording content. Once one of these leaves through a token, an internal meeting recording could be downloaded by anyone holding the link. Anyone who needs to watch is directed through Nawasara, where the access is logged.
+- **`join_url`, `password`**: unless the token carries `zoom.meeting.join`.
 
 ## API Rate Limits (Zoom)
 
-Zoom API rate limits: 30 req/sec (Light), 60 req/sec (Medium)
+Zoom API rate limits: 30 req/sec (Light), 60 req/sec (Medium).
 
-Default sync intervals sudah account untuk limits ini. Untuk high-volume account, adjust di `config/nawasara-zoom.php`.
+The default sync intervals already account for these limits. For a high-volume account, adjust them in `config/nawasara-zoom.php`.
 
 ## Troubleshooting
 
 ### "Credential belum lengkap"
 
-Pastikan Vault sudah punya credential:
+Make sure Vault has the credentials:
 
 ```bash
 php artisan vault:show
@@ -296,26 +296,26 @@ php artisan vault:show
 
 ### "Token expired during request"
 
-ZoomClient automatically refresh token (cached untuk 55 menit). Jika error persist, check timezone server.
+The ZoomClient refreshes the token automatically (cached for 55 minutes). If the error persists, check the server timezone.
 
 ### "Rate limit exceeded"
 
-Increase sync interval di config atau reduce page size.
+Increase the sync interval in the config, or reduce the page size.
 
 ## Cross-package Integration
 
 | Package                   | Trigger                         | Action                     |
 | ------------------------- | ------------------------------- | -------------------------- |
 | **nawasara/notification** | Meeting started/ended (webhook) | Notify host/participant    |
-| **nawasara/registry**     | Zoom user mapping               | Map Zoom user ↔ OPD/PIC    |
-| **nawasara/itop**         | Zoom user sync                  | Sync ke iTop Person record |
+| **nawasara/registry**     | Zoom user mapping               | Map Zoom user to OPD/PIC   |
+| **nawasara/itop**         | Zoom user sync                  | Sync to iTop Person record |
 
 ## Roadmap
 
 - [ ] Webhook real-time sync (P2)
 - [ ] Batch meeting creation via CSV (P3)
-- [ ] Meeting recordings auto-retention (P2)
-- [ ] Integration dengan Zoom Phone (P3)
+- [ ] Meeting recording auto-retention (P2)
+- [ ] Zoom Phone integration (P3)
 - [ ] Zoom Webinar support (P3)
 
 ## License
