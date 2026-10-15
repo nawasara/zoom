@@ -121,6 +121,10 @@ class Table extends Component
      */
     protected function exportData(): iterable
     {
+        // Audit keamanan 15 Oktober 2026: export() dapat dipanggil langsung
+        // lewat payload wire, jadi izin lihat diperiksa ulang di sini.
+        \Illuminate\Support\Facades\Gate::authorize('zoom.user.view');
+
         return ZoomUser::query()
             ->orderBy('email')
             ->get()

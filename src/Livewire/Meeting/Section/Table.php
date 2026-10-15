@@ -4,10 +4,12 @@ namespace Nawasara\Zoom\Livewire\Meeting\Section;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Nawasara\AuthPrimitives\Traits\WithSudo;
 use Nawasara\Keycloak\Concerns\SearchesKeycloakDirectory;
 use Nawasara\Keycloak\Support\KeycloakProfile;
 use Nawasara\Registry\Models\Membership;
@@ -27,6 +29,7 @@ class Table extends Component
 {
     use HasExport;
     use HasToaster;
+    use WithSudo;
     // The list is paginated (repo->paginate + $meetings->links()), so this
     // component needs WithPagination — it provides resetPage().
     use WithPagination;
@@ -54,11 +57,15 @@ class Table extends Component
     public bool $selectAll = false;
 
     /** Detail modal — id of the meeting currently shown, null = closed. */
+    #[Locked]
     public ?int $detailId = null;
 
     // ─── Create/Edit form modal state ───────────────────────
     // The meeting form lives in this component as a modal, NOT a separate
     // page — same pattern as nawasara-notification's template table.
+    // Audit keamanan 15 Oktober 2026: id hanya diisi server (openEdit),
+    // dikunci supaya payload wire tidak bisa mengarahkan simpan ke rapat lain.
+    #[Locked]
     public ?int $editingId = null;
     public string $formHostId = '';
     // Penanggung jawab: user picks an OPD, then a member (user) of that OPD.
@@ -268,6 +275,13 @@ class Table extends Component
     public function delete($id): void
     {
         Gate::authorize('zoom.meeting.delete');
+
+        // Audit keamanan 15 Oktober 2026 (S6): method ini dipanggil sebagai
+        // listener event confirm-delete, dan #[RequiresSudo] tidak dievaluasi
+        // untuk listener. Karena itu sudo diperiksa secara imperatif.
+        if (! $this->requireSudo('menghapus meeting Zoom')) {
+            return;
+        }
 
         $meeting = ZoomMeeting::findOrFail($id);
         $meetingId = $meeting->meeting_id;
@@ -493,6 +507,10 @@ class Table extends Component
      */
     protected function exportData(): iterable
     {
+        // Audit keamanan 15 Oktober 2026: export() dapat dipanggil langsung
+        // lewat payload wire, jadi izin lihat diperiksa ulang di sini.
+        Gate::authorize('zoom.meeting.view');
+
         return ZoomMeeting::query()
             ->with('host')
             ->orderByDesc('start_time')

@@ -23,7 +23,12 @@ Route::middleware(['web', 'auth'])->prefix('nawasara-zoom')->group(function () {
         ->name('nawasara-zoom.recording.index');
 });
 
-// Public webhook (no auth, signature-verified inside controller)
+// Public webhook (no auth, signature-verified inside controller).
+//
+// Audit keamanan 15 Oktober 2026 (R3): dulu memakai grup `web`, sehingga
+// VerifyCsrfToken menolak setiap kiriman Zoom (419) dan webhook tidak pernah
+// sampai ke controller. Kini tanpa grup `web` (tanpa CSRF dan sesi), cukup
+// throttle per IP. Keaslian kiriman dijaga tanda tangan HMAC + jendela waktu.
 Route::post('nawasara-zoom/webhook', [ZoomWebhookController::class, 'handle'])
-    ->middleware('web')
+    ->middleware('throttle:120,1')
     ->name('nawasara-zoom.webhook');

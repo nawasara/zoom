@@ -40,7 +40,8 @@
         "nawasara/vault": "*",
         "nawasara/registry": "*",
         "nawasara/notification": "*",
-        "livewire/livewire": "^3.0"
+        "livewire/livewire": "^3.0",
+        "nawasara/auth-primitives": "*"
     },
     "extra": {
         "laravel": {

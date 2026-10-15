@@ -2,8 +2,11 @@
 
 namespace Nawasara\Zoom\Livewire\Recording\Section;
 
+use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 use Livewire\Attributes\Url;
+use Nawasara\AuthPrimitives\Attributes\RequiresSudo;
+use Nawasara\AuthPrimitives\Traits\WithSudo;
 use Nawasara\Ui\Livewire\Concerns\HasExport;
 use Nawasara\Ui\Livewire\Concerns\HasTimeWindow;
 use Nawasara\Zoom\Models\ZoomRecording;
@@ -13,6 +16,7 @@ use Nawasara\Zoom\Services\ZoomClient;
 class Table extends Component
 {
     use HasExport;
+    use WithSudo;
     // HasTimeWindow declares $window / $from / $to with #[Url] aliases.
     // The previous bare $from / $to URL props on this class are removed
     // because the trait owns them now (and aliases them to ?from= / ?to=).
@@ -108,8 +112,16 @@ class Table extends Component
         $this->selectAll = false;
     }
 
+    /**
+     * Audit keamanan 15 Oktober 2026 (T11): sebelumnya tanpa otorisasi sama
+     * sekali, sehingga siapa pun yang bisa membuka halaman recording dapat
+     * menghapus file di Zoom Cloud. Kini wajib izin hapus DAN sudo.
+     */
+    #[RequiresSudo(reason: 'menghapus recording Zoom')]
     public function deleteRecording(string $recordingId)
     {
+        Gate::authorize('zoom.recording.delete');
+
         try {
             $client = app(ZoomClient::class);
             $repo = new ZoomRecordingRepository();
@@ -140,6 +152,10 @@ class Table extends Component
      */
     protected function exportData(): iterable
     {
+        // Audit keamanan 15 Oktober 2026: export() dapat dipanggil langsung
+        // lewat payload wire, jadi izin lihat diperiksa ulang di sini.
+        Gate::authorize('zoom.recording.view');
+
         return ZoomRecording::query()
             ->with('owner')
             ->orderByDesc('start_time')
