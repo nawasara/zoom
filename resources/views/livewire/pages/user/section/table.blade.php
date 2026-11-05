@@ -56,13 +56,26 @@
 
     {{-- No stickyLast: read-only listing, no per-row actions. --}}
     <x-nawasara-ui::table
-        :headers="['Email', 'Name', 'License Type', 'Status', 'Last Login', '30D Meetings', 'Total Minutes']"
+        :headers="['Email', 'Name', 'License Type', 'Last Login', '30D Meetings', 'Total Minutes']"
         :title="'Zoom Users ('.$users->total().' users)'">
         <x-slot:table>
             @forelse ($users as $user)
                 <tr wire:key="user-{{ $user->id }}">
                     <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
                         {{ $user->email }}
+                        {{-- Status di bawah nama, bukan kolom sendiri: terlihat tanpa menggulir ke kanan. --}}
+                        @php
+                            $statusBadge = match($user->status) {
+                                'active' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                                'pending' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                                default => 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-300',
+                            };
+                        @endphp
+                        <div class="mt-1">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {{ $statusBadge }}">
+                                {{ ucfirst($user->status) }}
+                            </span>
+                        </div>
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600 dark:text-neutral-300">
                         {{ $user->full_name }}
@@ -78,18 +91,6 @@
                             {{ $user->license_type ?? 'N/A' }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-neutral-300">
-                        @php
-                            $statusBadge = match($user->status) {
-                                'active' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-                                'pending' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-                                default => 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-300',
-                            };
-                        @endphp
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold {{ $statusBadge }}">
-                            {{ ucfirst($user->status) }}
-                        </span>
-                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-neutral-300">
                         {{ $user->last_login_at?->diffForHumans() ?? 'Never' }}
                     </td>
@@ -102,7 +103,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7">
+                    <td colspan="6">
                         @if ($search || ! empty($licenseType) || ! empty($status))
                             <x-nawasara-ui::empty-state
                                 icon="lucide-search-x"
